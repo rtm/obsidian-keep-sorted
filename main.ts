@@ -1,4 +1,4 @@
-import { App, Modal, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { Plugin } from "obsidian";
 import { sortWithIndentation } from "utils";
 
 // Remember to rename these classes and interfaces!
@@ -20,14 +20,15 @@ export default class MyPlugin extends Plugin {
 		console.log("Loading keep-sorted Plugin...");
 
 		this.registerMarkdownPostProcessor((element, context) => {
+			console.log("element", element);
 			let codeblocks = element.findAll("code");
 			codeblocks = codeblocks.filter((item) =>
 				item.hasClass("language-keep-sorted")
 			);
 			for (let codeblock of codeblocks) {
-				console.log("codeblock", codeblock);
+				// console.log("codeblock", codeblock.innerHTML);
 				const text = codeblock.innerText.trim();
-				console.log("text", text);
+				// console.log("text", text);
 
 				const lines = text
 					.split("\n")
@@ -54,49 +55,5 @@ export default class MyPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText("Woah!");
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName("Setting #1")
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder("Enter your secret")
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					})
-			);
 	}
 }
