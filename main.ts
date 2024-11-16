@@ -1,44 +1,59 @@
-import { Plugin } from "obsidian";
-import { sortWithIndentation } from "utils";
+import {
+	Plugin,
+	MarkdownPostProcessor,
+	MarkdownPostProcessorContext,
+	MarkdownRenderer,
+} from "obsidian";
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
+interface KeepSortedPluginSettings {
 	mySetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: KeepSortedPluginSettings = {
 	mySetting: "default",
 };
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class KeepSortedPlugin extends Plugin {
+	settings: KeepSortedPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		console.log("Loading keep-sorted Plugin...");
+		this.registerMarkdownPostProcessor(
+			async (
+				element: HTMLElement,
+				{ sourcePath }: MarkdownPostProcessorContext,
+			) => {
+				const codeBlocks = element.querySelectorAll("pre > code");
 
-		this.registerMarkdownPostProcessor((element, context) => {
-			console.log("element", element);
-			let codeblocks = element.findAll("code");
-			codeblocks = codeblocks.filter((item) =>
-				item.hasClass("language-keep-sorted")
-			);
-			for (let codeblock of codeblocks) {
-				// console.log("codeblock", codeblock.innerHTML);
-				const text = codeblock.innerText.trim();
-				// console.log("text", text);
+				for (const codeBlock of Array.from(codeBlocks)) {
+					if (!codeBlock.hasClass("language-keep-sorted")) continue;
 
-				const lines = text
-					.split("\n")
-					.filter((line) => line.trim() !== "");
+					const preElement = codeBlock.parentElement;
+					if (!preElement) continue;
 
-				const sortedContent = sortWithIndentation(lines);
+					const src = codeBlock.textContent ?? "";
 
-				codeblock.replaceWith(sortedContent.join("\n"));
-			}
-		});
+					preElement.classList.add("keep-sorted-block");
+
+					const el = document.createElement("div");
+					el.className = "keep-sorted-container";
+
+					await MarkdownRenderer.render(this.app, src, el, sourcePath, this);
+					const sorted = Array.from(el.children).sort(
+						(a: Element, b: Element) =>
+							(a.textContent ?? "").localeCompare(b.textContent ?? ""),
+					);
+
+					console.log("sorted elements are", sorted);
+					for (const elt of sorted) el.appendChild(elt);
+
+					preElement.replaceWith(el);
+				}
+			},
+		);
 	}
 
 	onunload() {
@@ -46,11 +61,7 @@ export default class MyPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData()
-		);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
 	async saveSettings() {
