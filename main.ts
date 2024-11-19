@@ -1,9 +1,4 @@
-import {
-	Plugin,
-	MarkdownPostProcessor,
-	MarkdownPostProcessorContext,
-	MarkdownRenderer,
-} from "obsidian";
+import { Plugin, MarkdownPostProcessorContext } from "obsidian";
 
 // Remember to rename these classes and interfaces!
 
@@ -15,6 +10,14 @@ const DEFAULT_SETTINGS: KeepSortedPluginSettings = {
 	mySetting: "default",
 };
 
+function normalize(s: string | null) {
+	return s?.trim().toLowerCase() ?? "";
+}
+
+function sortFunc(a: HTMLElement, b: HTMLElement) {
+	return normalize(a.textContent).localeCompare(normalize(b.textContent));
+}
+
 export default class KeepSortedPlugin extends Plugin {
 	settings: KeepSortedPluginSettings;
 
@@ -22,35 +25,17 @@ export default class KeepSortedPlugin extends Plugin {
 		await this.loadSettings();
 
 		this.registerMarkdownPostProcessor(
-			async (
-				element: HTMLElement,
-				{ sourcePath }: MarkdownPostProcessorContext,
-			) => {
-				const codeBlocks = element.querySelectorAll("pre > code");
+			async (element: HTMLElement, context: MarkdownPostProcessorContext) => {
+				const lists = element.querySelectorAll("ul,ol");
 
-				for (const codeBlock of Array.from(codeBlocks)) {
-					if (!codeBlock.hasClass("language-keep-sorted")) continue;
-
-					const preElement = codeBlock.parentElement;
-					if (!preElement) continue;
-
-					const src = codeBlock.textContent ?? "";
-
-					preElement.classList.add("keep-sorted-block");
-
-					const el = document.createElement("div");
-					el.className = "keep-sorted-container";
-
-					await MarkdownRenderer.render(this.app, src, el, sourcePath, this);
-					const sorted = Array.from(el.children).sort(
-						(a: Element, b: Element) =>
-							(a.textContent ?? "").localeCompare(b.textContent ?? ""),
-					);
-
-					console.log("sorted elements are", sorted);
-					for (const elt of sorted) el.appendChild(elt);
-
-					preElement.replaceWith(el);
+				for (const list of Array.from(lists)) {
+					const maybeComment = list.previousSibling;
+					if (
+						maybeComment?.nodeType !== Node.COMMENT_NODE ||
+						!maybeComment?.nodeValue?.match(/s+keep-sorted\s+/i)
+					)
+						continue;
+					list.prepend(...Array.from(list.children).sort(sortFunc));
 				}
 			},
 		);

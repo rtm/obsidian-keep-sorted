@@ -1,20 +1,19 @@
 # obsidian-keep-sorted
 
-An Obsidian plug-in to keep lines in a code block sorted
+An Obsidian plug-in to keep list items sorted.
 
-Place the content to be sorted in a code block named `keep-sorted`.
+Place the following directive immediately preceding the list to be sorted:
 
 Example:
 
-    ```keep-sorted
-    oranges
-    apples
-    pears
-    ```
-    
-The content will be sorted only in reading view. (This includes editing view
-when live preview is turned on).
+```
+<!-- keep-sorted -->
+* Dog
+* Cat
+```
 
 In this initial version, there is no way to control the sort order. And there is
-no way to give a different sort key. Sorting is based on the alphabetic content
-of the elements within the content.
+no way to give a different sort key to individual items. Sorting is based on the
+alphabetic content of the elements within the content, with case
+folding. Sorting applies to both unordered (bullet) and ordered (numbered)
+lists.
