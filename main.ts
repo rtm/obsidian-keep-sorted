@@ -1,55 +1,51 @@
-import { Plugin, MarkdownPostProcessorContext } from "obsidian";
-
-// Remember to rename these classes and interfaces!
-
-interface KeepSortedPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: KeepSortedPluginSettings = {
-	mySetting: "default",
-};
-
-function normalize(s: string | null) {
-	return s?.trim().toLowerCase() ?? "";
-}
-
-function sortFunc(a: HTMLElement, b: HTMLElement) {
-	return normalize(a.textContent).localeCompare(normalize(b.textContent));
-}
+import { Plugin, TFile, Editor } from 'obsidian';
+import { sortKeepSortedBlocks } from './sort';
 
 export default class KeepSortedPlugin extends Plugin {
-	settings: KeepSortedPluginSettings;
+    private processing = new Set<string>();
 
-	async onload() {
-		await this.loadSettings();
+    async onload() {
+        this.registerEvent(this.app.vault.on('modify', async (file) => {
+            if (!(file instanceof TFile) || file.extension !== 'md') return;
+            if (this.processing.has(file.path)) return;
+            await this.sortFile(file);
+        }));
 
-		this.registerMarkdownPostProcessor(
-			async (element: HTMLElement, context: MarkdownPostProcessorContext) => {
-				const lists = element.querySelectorAll("ul,ol");
+        this.addCommand({
+            id: 'sort-all-keep-sorted-blocks',
+            name: 'Sort keep-sorted blocks in all files',
+            callback: () => this.sortAllFiles()
+        });
 
-				for (const list of Array.from(lists)) {
-					const maybeComment = list.previousSibling;
-					if (
-						maybeComment?.nodeType !== Node.COMMENT_NODE ||
-						!maybeComment?.nodeValue?.match(/s+keep-sorted\s+/i)
-					)
-						continue;
-					list.prepend(...Array.from(list.children).sort(sortFunc));
-				}
-			},
-		);
-	}
+        this.addCommand({
+            id: 'mark-selection',
+            name: 'Mark selection',
+            editorCallback: (editor: Editor) => {
+                const selection = editor.getSelection();
+                const from = editor.getCursor('from');
+                const to = editor.getCursor('to');
+                const replacement = `%% keep-sorted start %%\n${selection}\n%% keep-sorted end %%`;
+                editor.replaceRange(replacement, from, to);
+            }
+        });
+    }
 
-	onunload() {
-		console.log("Unloading keep-sorted Plugin...");
-	}
+    async sortFile(file: TFile) {
+        const content = await this.app.vault.read(file);
+        if (!content.includes('keep-sorted')) return;
+        const sorted = sortKeepSortedBlocks(content);
+        if (sorted === content) return;
+        this.processing.add(file.path);
+        try {
+            await this.app.vault.modify(file, sorted);
+        } finally {
+            this.processing.delete(file.path);
+        }
+    }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+    async sortAllFiles() {
+        for (const file of this.app.vault.getMarkdownFiles()) {
+            await this.sortFile(file);
+        }
+    }
 }

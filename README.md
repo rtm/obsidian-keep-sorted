@@ -1,21 +1,66 @@
-# obsidian-keep-sorted
+# Keep Sorted
 
-An Obsidian plug-in to keep lines in a code block sorted
+An Obsidian plugin to automatically keep marked list regions sorted in your notes.
 
-Place the content to be sorted between HTML comments as follows:
+## Usage
 
-Example:
+Wrap any list in `keep-sorted` markers using Obsidian comment syntax:
 
 ```
-<!-- keep-sorted start -->
-
-* Dog
-    * Cat
-* Rabbit
-
-<!-- keep-sorted being -->
+%% keep-sorted start %%
+- Dog
+- Cat
+- Bird
+%% keep-sorted end %%
 ```
 
-In this initial version, there is no way to control the sort order. And there is
-no way to give a different sort key to individual items. Sorting is based on the
-alphabetic content of the elements within the content, with case folding.
+The region is automatically sorted whenever the file is modified.
+
+Tables also work — use `skip_lines=2` to keep the header and separator rows in place:
+
+```
+%% keep-sorted start skip_lines=2 %%
+| Name | Color |
+| --- | --- |
+| Dog | Brown |
+| Cat | Black |
+| Bird | Red |
+%% keep-sorted end %%
+```
+
+Rows are sorted by their full text, which effectively sorts by the first column.
+
+## Options
+
+Options can be added to the start marker:
+
+```
+%% keep-sorted start order=desc case=yes %%
+```
+
+| Option | Values | Default | Description |
+|---|---|---|---|
+| `order` | `asc`, `desc` | `asc` | Sort direction |
+| `case` | `yes`, `no` | `no` | Case-sensitive sorting |
+| `numeric` | `yes`, `no` | `no` | Numeric-aware sorting (e.g. 2 before 10) |
+| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted |
+
+## Sort key extraction
+
+Sort keys are derived by stripping the following from each line:
+
+- List prefixes (`-`, `*`, `+`, `1.`)
+- Wikilinks: `[[file|display]]` sorts by display text; `[[file]]` sorts by file
+- Markdown links: `[text](url)` sorts by text
+- Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
+
+Multi-line items (continuation lines indented deeper than the first line) are kept together as a group.
+
+## Commands
+
+All commands are available from the command palette (Ctrl/Cmd+P), prefixed with "Keep Sorted:".
+
+| Command | Description |
+|---|---|
+| **Sort keep-sorted blocks in all files** | Re-sort all marked blocks across the entire vault |
+| **Mark selection** | Wrap the current selection with `keep-sorted` start/end markers |
