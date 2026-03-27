@@ -3,7 +3,7 @@
 	"name": "Keep Sorted",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Sort contents of code block",
+	"description": "Automatically keep marked list regions sorted in your notes",
 	"author": "Bob Myers",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",
