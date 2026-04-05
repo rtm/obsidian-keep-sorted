@@ -7,7 +7,6 @@ export default class KeepSortedPlugin extends Plugin {
     async onload() {
         this.registerEvent(this.app.vault.on('modify', async (file) => {
             if (!(file instanceof TFile) || file.extension !== 'md') return;
-            if (this.processing.has(file.path)) return;
             await this.sortFile(file);
         }));
 
@@ -31,13 +30,13 @@ export default class KeepSortedPlugin extends Plugin {
     }
 
     async sortFile(file: TFile) {
-        const content = await this.app.vault.read(file);
-        if (!content.includes('keep-sorted')) return;
-        const sorted = sortKeepSortedBlocks(content);
-        if (sorted === content) return;
+        if (this.processing.has(file.path)) return;
         this.processing.add(file.path);
         try {
-            await this.app.vault.modify(file, sorted);
+            const content = await this.app.vault.read(file);
+            if (!content.includes('keep-sorted')) return;
+            const sorted = sortKeepSortedBlocks(content);
+            if (sorted !== content) await this.app.vault.modify(file, sorted);
         } finally {
             this.processing.delete(file.path);
         }

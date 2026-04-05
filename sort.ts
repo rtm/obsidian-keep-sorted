@@ -7,8 +7,7 @@ interface SortOptions {
 
 function parseOptions(str: string): SortOptions {
     const opts: SortOptions = { case: 'no', order: 'asc', numeric: false, skipLines: 0 };
-    for (const match of str.matchAll(/(\w+)=(\S+)/g)) {
-        const [, key, val] = match;
+    for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
@@ -31,15 +30,14 @@ function extractSortKey(line: string, options: SortOptions): string {
     return s.trim();
 }
 
+const indentOf = (s: string) => s.search(/\S/);
+
 function splitIntoGroups(lines: string[]): string[][] {
-    if (lines.length === 0) return [];
-    const nonEmpty = lines.filter(l => l.trim() !== '');
-    if (nonEmpty.length === 0) return [lines];
-    const baseIndent = Math.min(...nonEmpty.map(l => l.match(/^(\s*)/)?.[1].length ?? 0));
+    const baseIndent = Math.min(...lines.filter(l => l.trim()).map(indentOf));
     const groups: string[][] = [];
     for (const line of lines) {
-        const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
-        if (groups.length === 0 || (line.trim() !== '' && indent <= baseIndent)) {
+        const ind = indentOf(line);
+        if (groups.length === 0 || (ind >= 0 && ind <= baseIndent)) {
             groups.push([line]);
         } else {
             groups[groups.length - 1].push(line);
@@ -61,9 +59,7 @@ function sortBlock(body: string, options: SortOptions): string {
     groups.sort((a, b) => {
         const keyA = extractSortKey(a[0], options);
         const keyB = extractSortKey(b[0], options);
-        const cmp = options.numeric
-            ? keyA.localeCompare(keyB, undefined, { numeric: true })
-            : keyA.localeCompare(keyB);
+        const cmp = keyA.localeCompare(keyB, undefined, options.numeric ? { numeric: true } : undefined);
         return options.order === 'desc' ? -cmp : cmp;
     });
 
