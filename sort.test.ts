@@ -27,3 +27,17 @@ test('an explicit skip_lines still wins, counted from the first non-blank line',
     const input = block('\nkeep me\n- b\n- a\n', ' skip_lines=1');
     assert.equal(sortKeepSortedBlocks(input), block('\nkeep me\n- a\n- b\n', ' skip_lines=1'));
 });
+
+test('skip_lines=0 turns table detection off', () => {
+    const input = block('| b |\n| --- |\n| a |\n', ' skip_lines=0');
+    assert.equal(sortKeepSortedBlocks(input), block('| --- |\n| a |\n| b |\n', ' skip_lines=0'));
+});
+
+test('a table without outer pipes is detected', () => {
+    const input = block('Name | Color\n--- | ---\nDog | Brown\nCat | Black\n');
+    assert.equal(sortKeepSortedBlocks(input), block('Name | Color\n--- | ---\nCat | Black\nDog | Brown\n'));
+});
+
+test('a negative skip_lines is treated as 0', () => {
+    assert.equal(sortKeepSortedBlocks(block('- c\n- b\n- a\n', ' skip_lines=-1')), block('- a\n- b\n- c\n', ' skip_lines=-1'));
+});

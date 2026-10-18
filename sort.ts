@@ -2,16 +2,16 @@ interface SortOptions {
     case: 'yes' | 'no';
     order: 'asc' | 'desc';
     numeric: boolean;
-    skipLines: number;
+    skipLines?: number;
 }
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'no', order: 'asc', numeric: false, skipLines: 0 };
+    const opts: SortOptions = { case: 'no', order: 'asc', numeric: false };
     for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
-        else if (key === 'skip_lines') opts.skipLines = parseInt(val, 10) || 0;
+        else if (key === 'skip_lines') opts.skipLines = Math.max(0, parseInt(val, 10) || 0);
     }
     return opts;
 }
@@ -31,9 +31,17 @@ function extractSortKey(line: string, options: SortOptions): string {
 }
 
 const indentOf = (s: string) => s.search(/\S/);
+const isBlank = (s: string) => s.trim() === '';
+
+/** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
+function isSeparatorRow(line: string): boolean {
+    if (!line.includes('|') && !/^\s*:?-{3,}:?\s*$/.test(line)) return false;
+    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
+    return cells.every(c => /^\s*:?-+:?\s*$/.test(c));
+}
 
 function splitIntoGroups(lines: string[]): string[][] {
-    const baseIndent = Math.min(...lines.filter(l => l.trim()).map(indentOf));
+    const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
     for (const line of lines) {
         const ind = indentOf(line);
@@ -54,8 +62,7 @@ function sortBlock(body: string, options: SortOptions): string {
     // Blank lines at the edges of the block stay where they are. Markdown needs
     // them to separate a table from the markers, and sorting would otherwise
     // carry them into the middle of the block. skip_lines counts from the first
-    // non-blank line.
-    const isBlank = (l: string) => l.trim() === '';
+    // non-blank line; an explicit skip_lines, even 0, overrides table detection.
     let lead = 0;
     while (lead < lines.length && isBlank(lines[lead])) lead++;
     let trail = lines.length;
@@ -65,8 +72,8 @@ function sortBlock(body: string, options: SortOptions): string {
     const content = lines.slice(lead, trail);
 
     // A table's header and separator rows stay on top without being asked for.
-    const isTable = content.length >= 2 && /^\s*\|/.test(content[0]) && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(content[1]);
-    const skip = options.skipLines || (isTable ? 2 : 0);
+    const isTable = content.length >= 2 && content[0].includes('|') && isSeparatorRow(content[1]);
+    const skip = options.skipLines ?? (isTable ? 2 : 0);
     const skipped = content.slice(0, skip);
     const toSort = content.slice(skip);
 

@@ -13,6 +13,9 @@
 	"keywords": ["obsidian", "obsidian-plugin", "sorting", "lists"],
 	"author": "Bob Myers",
 	"license": "MIT",
+	"engines": {
+		"node": ">=22.18"
+	},
 	"devDependencies": {
 		"@types/node": "^22.9.0",
 		"@typescript-eslint/eslint-plugin": "8.14.0",

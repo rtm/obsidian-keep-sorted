@@ -45,7 +45,7 @@ Options can be added to the start marker:
 | `order` | `asc`, `desc` | `asc` | Sort direction |
 | `case` | `yes`, `no` | `no` | Case-sensitive sorting |
 | `numeric` | `yes`, `no` | `no` | Numeric-aware sorting (e.g. 2 before 10) |
-| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted, counted from the first non-blank line. Tables need none. |
+| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted, counted from the first non-blank line. Tables need none; `skip_lines=0` turns table detection off. Blocks that counted a leading blank line in `skip_lines` should drop it by one. |
 
 ## Sort key extraction
 
