@@ -51,8 +51,24 @@ function sortBlock(body: string, options: SortOptions): string {
     const lines = body.split('\n');
     if (hasTrailingNewline && lines[lines.length - 1] === '') lines.pop();
 
-    const skipped = lines.slice(0, options.skipLines);
-    const toSort = lines.slice(options.skipLines);
+    // Blank lines at the edges of the block stay where they are. Markdown needs
+    // them to separate a table from the markers, and sorting would otherwise
+    // carry them into the middle of the block. skip_lines counts from the first
+    // non-blank line.
+    const isBlank = (l: string) => l.trim() === '';
+    let lead = 0;
+    while (lead < lines.length && isBlank(lines[lead])) lead++;
+    let trail = lines.length;
+    while (trail > lead && isBlank(lines[trail - 1])) trail--;
+    const leading = lines.slice(0, lead);
+    const trailing = lines.slice(trail);
+    const content = lines.slice(lead, trail);
+
+    // A table's header and separator rows stay on top without being asked for.
+    const isTable = content.length >= 2 && /^\s*\|/.test(content[0]) && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(content[1]);
+    const skip = options.skipLines || (isTable ? 2 : 0);
+    const skipped = content.slice(0, skip);
+    const toSort = content.slice(skip);
 
     const groups = splitIntoGroups(toSort);
 
@@ -70,7 +86,7 @@ function sortBlock(body: string, options: SortOptions): string {
         sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, '$11. ');
     }
 
-    const sortedLines = [...skipped, ...sorted];
+    const sortedLines = [...leading, ...skipped, ...sorted, ...trailing];
     return sortedLines.join('\n') + (hasTrailingNewline ? '\n' : '');
 }
 

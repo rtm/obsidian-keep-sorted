@@ -16,15 +16,17 @@ Wrap any list in `keep-sorted` markers using Obsidian comment syntax:
 
 The region is automatically sorted whenever the file is modified.
 
-Tables also work — use `skip_lines=2` to keep the header and separator rows in place:
+Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
 ```
-%% keep-sorted start skip_lines=2 %%
+%% keep-sorted start %%
+
 | Name | Color |
 | --- | --- |
 | Dog | Brown |
 | Cat | Black |
 | Bird | Red |
+
 %% keep-sorted end %%
 ```
 
@@ -43,7 +45,7 @@ Options can be added to the start marker:
 | `order` | `asc`, `desc` | `asc` | Sort direction |
 | `case` | `yes`, `no` | `no` | Case-sensitive sorting |
 | `numeric` | `yes`, `no` | `no` | Numeric-aware sorting (e.g. 2 before 10) |
-| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted |
+| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted, counted from the first non-blank line. Tables need none. |
 
 ## Sort key extraction
 
