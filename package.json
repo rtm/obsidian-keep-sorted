@@ -6,12 +6,16 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"test": "node --test sort.test.ts",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"deploy": "node esbuild.config.mjs production && node deploy.mjs"
 	},
 	"keywords": ["obsidian", "obsidian-plugin", "sorting", "lists"],
 	"author": "Bob Myers",
 	"license": "MIT",
+	"engines": {
+		"node": ">=22.18"
+	},
 	"devDependencies": {
 		"@types/node": "^22.9.0",
 		"@typescript-eslint/eslint-plugin": "8.14.0",
