@@ -45,9 +45,9 @@ Options can be added to the start marker:
 | `order` | `asc`, `desc` | `asc` | Sort direction |
 | `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10 |
-| `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted, counted from the markers with blank lines included: a positive number at the top, a negative one at the bottom. Without it, a table's header and separator rows are kept on top automatically; any `skip_lines`, even `0`, turns that off. |
+| `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), so a block sorts the same way in both. Like it, the plugin compares characters by code rather than by language, so punctuation and accented letters sort by their character codes.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted). Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 
