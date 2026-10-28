@@ -51,8 +51,9 @@ export default class KeepSortedPlugin extends Plugin {
     /** Restart this file's quiet timer. */
     private scheduleSort(file: TFile) {
         const existing = this.pending.get(file);
-        // window's timers, not the globals, so they work in pop-out windows.
-        if (existing) window.clearTimeout(existing);
+        // window's timers, as Obsidian's guidelines ask: browser timers with
+        // number handles rather than Node's Timeout objects.
+        if (existing !== undefined) window.clearTimeout(existing);
         this.pending.set(file, window.setTimeout(() => {
             this.pending.delete(file);
             // Skip a file deleted during the wait.

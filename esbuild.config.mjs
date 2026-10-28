@@ -32,7 +32,8 @@ const context = await esbuild.context({
 		"@lezer/highlight",
 		"@lezer/lr",
 		...builtinModules,
-		...builtinModules.map((m) => `node:${m}`)],
+		// Every node: import, including prefix-only modules such as node:test.
+		"node:*"],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
