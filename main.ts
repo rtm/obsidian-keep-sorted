@@ -12,7 +12,7 @@ export default class KeepSortedPlugin extends Plugin {
     private processing = new Set<TFile>();
     /** Keyed by TFile, whose path Obsidian updates on rename, so a file renamed
      *  during the wait is still sorted under its new name. */
-    private pending = new Map<TFile, ReturnType<typeof setTimeout>>();
+    private pending = new Map<TFile, number>();
 
     async onload() {
         this.registerEvent(this.app.vault.on('modify', (file) => {
@@ -42,7 +42,7 @@ export default class KeepSortedPlugin extends Plugin {
      *  just before Obsidian closes or the plugin is disabled is not left unsorted. */
     onunload() {
         for (const [file, timer] of this.pending) {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             void this.sortFile(file);
         }
         this.pending.clear();
@@ -51,8 +51,9 @@ export default class KeepSortedPlugin extends Plugin {
     /** Restart this file's quiet timer. */
     private scheduleSort(file: TFile) {
         const existing = this.pending.get(file);
-        if (existing) clearTimeout(existing);
-        this.pending.set(file, setTimeout(() => {
+        // window's timers, not the globals, so they work in pop-out windows.
+        if (existing) window.clearTimeout(existing);
+        this.pending.set(file, window.setTimeout(() => {
             this.pending.delete(file);
             // Skip a file deleted during the wait.
             if (this.app.vault.getAbstractFileByPath(file.path) === file) void this.sortFile(file);
