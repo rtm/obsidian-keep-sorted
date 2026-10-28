@@ -147,9 +147,7 @@ function sortBlock(body: string, options: SortOptions): string {
 /** Wraps text in start and end markers. The marker syntax lives in this file,
  *  beside the pattern that reads it. */
 export function wrapInMarkers(text: string): string {
-    return `%% keep-sorted start %%
-${text}
-%% keep-sorted end %%`;
+    return `%% keep-sorted start %%\n${text}\n%% keep-sorted end %%`;
 }
 
 export function sortKeepSortedBlocks(content: string): string {
