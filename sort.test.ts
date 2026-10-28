@@ -88,3 +88,19 @@ test('numeric=yes compares runs of digits by value', () => {
 test('without numeric, digits compare as characters', () => {
     assert.equal(sortKeepSortedBlocks(block('- a10\n- a9\n- a1\n')), block('- a1\n- a10\n- a9\n'));
 });
+
+test('blank lines between held lines and the sorted items stay in place', () => {
+    const opts = ' skip_lines=1 order=desc';
+    assert.equal(sortKeepSortedBlocks(block('Heading\n\n- a\n- b\n', opts)), block('Heading\n\n- b\n- a\n', opts));
+    const foot = ' skip_lines=-1';
+    assert.equal(sortKeepSortedBlocks(block('- c\n- b\n\nTotal\n', foot)), block('- b\n- c\n\nTotal\n', foot));
+});
+
+test('skip_lines accepts a leading plus sign', () => {
+    assert.equal(sortKeepSortedBlocks(block('keep\n- b\n- a\n', ' skip_lines=+1')), block('keep\n- a\n- b\n', ' skip_lines=+1'));
+});
+
+test('a held first item is not renumbered away', () => {
+    const opts = ' skip_lines=1';
+    assert.equal(sortKeepSortedBlocks(block('1. intro\n3. c\n2. b\n', opts)), block('1. intro\n2. b\n3. c\n', opts));
+});

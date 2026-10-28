@@ -4,10 +4,12 @@ interface SortOptions {
     case: 'yes' | 'no';
     order: 'asc' | 'desc';
     numeric: boolean;
-    /** Lines held in place at the top and bottom of the block. head is absent
-     *  unless skip_lines gives it, which lets table detection decide. */
-    skipLines: { head?: number; tail: number };
+    skipLines: SkipLines;
 }
+
+/** Lines held in place at the top and bottom of the block. head is absent
+ *  unless skip_lines gives it, which lets table detection decide. */
+type SkipLines = { head?: number; tail: number };
 
 function parseOptions(str: string): SortOptions {
     const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 } };
@@ -22,10 +24,10 @@ function parseOptions(str: string): SortOptions {
 
 /** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
  *  Parts that are not integers are ignored. */
-function parseSkipLines(val: string): { head?: number; tail: number } {
-    const skip: { head?: number; tail: number } = { tail: 0 };
+function parseSkipLines(val: string): SkipLines {
+    const skip: SkipLines = { tail: 0 };
     for (const part of val.split(',')) {
-        if (!/^\s*-?\d+\s*$/.test(part)) continue;
+        if (!/^\s*[+-]?\d+\s*$/.test(part)) continue;
         const n = parseInt(part, 10);
         if (n >= 0) skip.head = n;
         else skip.tail = -n;
@@ -93,6 +95,15 @@ function isSeparatorRow(line: string): boolean {
     return cells.every(c => /^\s*:?-+:?\s*$/.test(c));
 }
 
+/** Splits off the blank lines at either end, which stay where they are. */
+function trimBlankEdges(lines: string[]): { leading: string[]; content: string[]; trailing: string[] } {
+    let lead = 0;
+    while (lead < lines.length && isBlank(lines[lead])) lead++;
+    let trail = lines.length;
+    while (trail > lead && isBlank(lines[trail - 1])) trail--;
+    return { leading: lines.slice(0, lead), content: lines.slice(lead, trail), trailing: lines.slice(trail) };
+}
+
 function splitIntoGroups(lines: string[]): string[][] {
     const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
@@ -115,13 +126,7 @@ function sortBlock(body: string, options: SortOptions): string {
     // Blank lines at the edges of the block stay where they are. Markdown
     // needs them to separate a table from the markers, and sorting would
     // otherwise carry them into the middle of the block.
-    let lead = 0;
-    while (lead < lines.length && isBlank(lines[lead])) lead++;
-    let trail = lines.length;
-    while (trail > lead && isBlank(lines[trail - 1])) trail--;
-    const leading = lines.slice(0, lead);
-    const trailing = lines.slice(trail);
-    const content = lines.slice(lead, trail);
+    const { leading, content, trailing } = trimBlankEdges(lines);
 
     // skip_lines counts from the first and last non-blank lines. In
     // google/keep-sorted it counts from the markers, which is the same
@@ -135,7 +140,9 @@ function sortBlock(body: string, options: SortOptions): string {
     const bottom = content.slice(end);
 
     // Each key is computed once, not on every comparison.
-    const keyed = splitIntoGroups(content.slice(head, end))
+    // Blank lines between the held lines and the rest stay in place too.
+    const region = trimBlankEdges(content.slice(head, end));
+    const keyed = splitIntoGroups(region.content)
         .map(group => ({ group, key: extractSortKey(group[0], options) }));
     keyed.sort((a, b) => {
         const cmp = compareKeys(a.key, b.key, options.numeric);
@@ -144,12 +151,13 @@ function sortBlock(body: string, options: SortOptions): string {
 
     const sorted = keyed.flatMap(k => k.group);
 
-    // Ensure ordered lists start from 1 after sorting
-    if (sorted.length > 0) {
+    // Ensure ordered lists start from 1 after sorting, unless held lines above
+    // start the list.
+    if (sorted.length > 0 && top.length === 0) {
         sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, '$11. ');
     }
 
-    const sortedLines = [...leading, ...top, ...sorted, ...bottom, ...trailing];
+    const sortedLines = [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
     return sortedLines.join('\n') + (hasTrailingNewline ? '\n' : '');
 }
 
