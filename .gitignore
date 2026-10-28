@@ -16,3 +16,6 @@ data.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+
+# per-machine deploy config
+deploy.config.json
