@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, Editor } from 'obsidian';
-import { sortKeepSortedBlocks } from './sort';
+import { sortKeepSortedBlocks, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
  *  every change reorders lines under the cursor while they are still being
@@ -31,11 +31,9 @@ export default class KeepSortedPlugin extends Plugin {
             id: 'mark-selection',
             name: 'Mark selection',
             editorCallback: (editor: Editor) => {
-                const selection = editor.getSelection();
-                const from = editor.getCursor('from');
-                const to = editor.getCursor('to');
-                const replacement = `%% keep-sorted start %%\n${selection}\n%% keep-sorted end %%`;
-                editor.replaceRange(replacement, from, to);
+                // replaceRange on the main selection, not replaceSelection, which
+                // would insert the block at every cursor.
+                editor.replaceRange(wrapInMarkers(editor.getSelection()), editor.getCursor('from'), editor.getCursor('to'));
             }
         });
     }

@@ -161,6 +161,12 @@ function sortBlock(body: string, options: SortOptions): string {
     return sortedLines.join('\n') + (hasTrailingNewline ? '\n' : '');
 }
 
+/** Wraps text in start and end markers. The marker syntax lives in this file,
+ *  beside the pattern that reads it. */
+export function wrapInMarkers(text: string): string {
+    return `%% keep-sorted start %%\n${text}\n%% keep-sorted end %%`;
+}
+
 export function sortKeepSortedBlocks(content: string): string {
     const regex = /(%%\s*keep-sorted\s+start(.*?)%%[ \t]*\n)([\s\S]*?)(%%\s*keep-sorted\s+end\s*%%)/g;
     return content.replace(regex, (_match, startMarker, optStr, body, endMarker) => {

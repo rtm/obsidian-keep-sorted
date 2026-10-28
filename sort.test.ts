@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortKeepSortedBlocks } from './sort.ts';
+import { sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
 
 const block = (body: string, opts = '') =>
     `%% keep-sorted start${opts} %%\n${body}%% keep-sorted end %%`;
@@ -103,4 +103,8 @@ test('skip_lines accepts a leading plus sign', () => {
 test('a held first item is not renumbered away', () => {
     const opts = ' skip_lines=1';
     assert.equal(sortKeepSortedBlocks(block('1. intro\n3. c\n2. b\n', opts)), block('1. intro\n2. b\n3. c\n', opts));
+});
+
+test('a block made by wrapInMarkers is found and sorted', () => {
+    assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
