@@ -1,7 +1,6 @@
 import { readFileSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { readFile } from 'fs/promises';
 
 // Read vault path: ~/.obsidian-dev.json (central) takes precedence, then deploy.config.json (per-repo)
 let vaultPath;
@@ -33,14 +32,11 @@ if (!vaultPath) {
     process.exit(1);
 }
 
-// Read plugin ID from manifest
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const pluginDir = join(vaultPath, '.obsidian', 'plugins', manifest.id);
 
-// Ensure plugin directory exists
 mkdirSync(pluginDir, { recursive: true });
 
-// Copy built files
 for (const file of ['main.js', 'manifest.json']) {
     copyFileSync(file, join(pluginDir, file));
     console.log(`Copied ${file} → ${pluginDir}/`);
