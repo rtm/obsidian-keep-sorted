@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortKeepSortedBlocks } from './sort.ts';
+import { sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
 
 const block = (body: string, opts = '') =>
     `%% keep-sorted start${opts} %%\n${body}%% keep-sorted end %%`;
@@ -64,4 +64,8 @@ test('numeric=yes compares runs of digits by value', () => {
 
 test('without numeric, digits compare as characters', () => {
     assert.equal(sortKeepSortedBlocks(block('- a10\n- a9\n- a1\n')), block('- a1\n- a10\n- a9\n'));
+});
+
+test('a block made by wrapInMarkers is found and sorted', () => {
+    assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });

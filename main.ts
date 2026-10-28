@@ -31,7 +31,9 @@ export default class KeepSortedPlugin extends Plugin {
             id: 'mark-selection',
             name: 'Mark selection',
             editorCallback: (editor: Editor) => {
-                editor.replaceSelection(wrapInMarkers(editor.getSelection()));
+                // replaceRange on the main selection, not replaceSelection, which
+                // would insert the block at every cursor.
+                editor.replaceRange(wrapInMarkers(editor.getSelection()), editor.getCursor('from'), editor.getCursor('to'));
             }
         });
     }
