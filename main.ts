@@ -22,7 +22,7 @@ export default class KeepSortedPlugin extends Plugin {
         }));
 
         this.addCommand({
-            id: 'sort-all-keep-sorted-blocks',
+            id: 'sort-all',
             name: 'Sort keep-sorted blocks in all files',
             callback: () => this.sortAllFiles()
         });
