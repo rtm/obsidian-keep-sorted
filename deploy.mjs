@@ -7,15 +7,21 @@ let vaultPath;
 for (const configPath of [join(process.env.HOME, '.obsidian-dev.json'), 'deploy.config.json']) {
     try {
         const config = JSON.parse(readFileSync(configPath, 'utf8'));
-        if (config.vaultPath) {
-            vaultPath = config.vaultPath;
+        // vaultPaths maps process.platform -> path, so one config can serve a
+        // vault reached by different paths from Windows and WSL. vaultPath is
+        // the single-path fallback for configs that predate it.
+        const resolved = config.vaultPaths?.[process.platform] ?? config.vaultPath;
+        if (resolved) {
+            vaultPath = resolved;
             break;
         }
     } catch (e) {}
 }
 if (!vaultPath) {
-    console.error('Error: No vaultPath found. Set it in ~/.obsidian-dev.json or deploy.config.json');
-    console.error('Example: { "vaultPath": "/path/to/your/vault" }');
+    console.error(`Error: No vault path found for platform "${process.platform}".`);
+    console.error('Set it in ~/.obsidian-dev.json or deploy.config.json, as either:');
+    console.error('  { "vaultPath": "/path/to/your/vault" }');
+    console.error('  { "vaultPaths": { "win32": "C:\\\\path\\\\to\\\\vault", "linux": "/path/to/vault" } }');
     process.exit(1);
 }
 
