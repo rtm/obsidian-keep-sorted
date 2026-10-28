@@ -19,3 +19,6 @@ data.json
 
 # per-machine deploy config
 deploy.config.json
+
+# build output; releases are built by the workflow
+main.js
