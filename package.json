@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-keep-sorted",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "Automatically keep marked list regions sorted in your notes.",
 	"main": "main.js",
 	"scripts": {
@@ -23,7 +23,6 @@
 	},
 	"devDependencies": {
 		"@types/node": "^22.9.0",
-		"builtin-modules": "4.0.0",
 		"esbuild": "0.24.0",
 		"obsidian": "latest",
 		"tslib": "2.8.1",
