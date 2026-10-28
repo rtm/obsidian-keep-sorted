@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +33,12 @@ jobs:
           npm ci
           npm test
           npm run build
+
+      # Lets anyone verify that the released main.js was built from this repository.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: main.js
 
       - name: Create release
         env:
