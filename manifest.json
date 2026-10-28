@@ -1,11 +1,10 @@
 {
-	"id": "obsidian-keep-sorted",
+	"id": "keep-sorted",
 	"name": "Keep Sorted",
 	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Automatically keep marked list regions sorted in your notes",
+	"minAppVersion": "1.1.0",
+	"description": "Automatically keep marked list regions sorted in your notes.",
 	"author": "Bob Myers",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"authorUrl": "https://github.com/rtm",
 	"isDesktopOnly": false
 }
