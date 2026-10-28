@@ -69,4 +69,4 @@ All commands are available from the command palette (Ctrl/Cmd+P), prefixed with 
 
 ## Acknowledgments
 
-The idea and the `keep-sorted start` / `keep-sorted end` markers come from Google's [keep-sorted](https://github.com/google/keep-sorted), a language-agnostic formatter that sorts lines between two markers in any file. Some option names, such as `case`, `numeric` and `skip_lines`, are borrowed from it, but their defaults and details can differ; the options listed above are the ones this plugin supports. This plugin brings the same convention to Obsidian notes, using Obsidian comments for the markers; it shares no code with the original.
+The idea and the `keep-sorted start` / `keep-sorted end` markers come from Google's [keep-sorted](https://github.com/google/keep-sorted), a language-agnostic formatter that sorts lines between two markers in any file. The options listed above take their names, values and defaults from it. This plugin brings the same convention to Obsidian notes, using Obsidian comments for the markers; it shares no code with the original.
