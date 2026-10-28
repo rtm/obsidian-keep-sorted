@@ -33,7 +33,7 @@ const pluginDir = join(vaultPath, '.obsidian', 'plugins', manifest.id);
 mkdirSync(pluginDir, { recursive: true });
 
 // Copy built files
-for (const file of ['main.js', 'manifest.json', 'styles.css']) {
+for (const file of ['main.js', 'manifest.json']) {
     copyFileSync(file, join(pluginDir, file));
     console.log(`Copied ${file} → ${pluginDir}/`);
 }
