@@ -68,3 +68,7 @@ All commands are available from the command palette (Ctrl/Cmd+P), prefixed with 
 |---|---|
 | **Sort keep-sorted blocks in all files** | Re-sort all marked blocks across the entire vault |
 | **Mark selection** | Wrap the current selection with `keep-sorted` start/end markers |
+
+## Acknowledgments
+
+The idea and the `keep-sorted start` / `keep-sorted end` markers come from Google's [keep-sorted](https://github.com/google/keep-sorted), a language-agnostic formatter that sorts lines between two markers in any file. The options listed above take their names, values and defaults from it. This plugin brings the same convention to Obsidian notes, using Obsidian comments for the markers; it shares no code with the original.
