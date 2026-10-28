@@ -76,7 +76,7 @@ function extractSortKey(line: string, options: SortOptions): string {
     // Strip list prefix: "- ", "* ", "+ ", or "N. "
     s = s.replace(/^\s*(?:[-*+]|\d+\.)\s+/, '');
     // Wikilink: [[file|display]] → display, [[file]] → file
-    s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, file, display) => display ?? file);
+    s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_: string, file: string, display: string | undefined) => display ?? file);
     // Markdown link: [text](url) → text
     s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
     // Markdown formatting: **, __, ~~, *, _, `
@@ -169,7 +169,7 @@ export function wrapInMarkers(text: string): string {
 
 export function sortKeepSortedBlocks(content: string): string {
     const regex = /(%%\s*keep-sorted\s+start(.*?)%%[ \t]*\n)([\s\S]*?)(%%\s*keep-sorted\s+end\s*%%)/g;
-    return content.replace(regex, (_match, startMarker, optStr, body, endMarker) => {
+    return content.replace(regex, (_match: string, startMarker: string, optStr: string, body: string, endMarker: string) => {
         const opts = parseOptions(optStr);
         const sorted = sortBlock(body, opts);
         return startMarker + sorted + endMarker;
