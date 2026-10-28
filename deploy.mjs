@@ -1,21 +1,29 @@
 import { readFileSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import { readFile } from 'fs/promises';
 
 // Read vault path: ~/.obsidian-dev.json (central) takes precedence, then deploy.config.json (per-repo)
 let vaultPath;
-for (const configPath of [join(process.env.HOME, '.obsidian-dev.json'), 'deploy.config.json']) {
+for (const configPath of [join(homedir(), '.obsidian-dev.json'), 'deploy.config.json']) {
+    let text;
     try {
-        const config = JSON.parse(readFileSync(configPath, 'utf8'));
-        // vaultPaths maps process.platform -> path, so one config can serve a
-        // vault reached by different paths from Windows and WSL. vaultPath is
-        // the single-path fallback for configs that predate it.
-        const resolved = config.vaultPaths?.[process.platform] ?? config.vaultPath;
-        if (resolved) {
-            vaultPath = resolved;
-            break;
-        }
-    } catch (e) {}
+        text = readFileSync(configPath, 'utf8');
+    } catch (e) {
+        if (e.code === 'ENOENT') continue;
+        throw e;
+    }
+    // Parse outside the try, so a malformed config reports its syntax error
+    // instead of looking like a missing one.
+    const config = JSON.parse(text);
+    // vaultPaths maps process.platform -> path, so one config can serve a
+    // vault reached by different paths from Windows and WSL. vaultPath is
+    // the single-path fallback for configs that predate it.
+    const resolved = config.vaultPaths?.[process.platform] || config.vaultPath;
+    if (resolved) {
+        vaultPath = resolved;
+        break;
+    }
 }
 if (!vaultPath) {
     console.error(`Error: No vault path found for platform "${process.platform}".`);
