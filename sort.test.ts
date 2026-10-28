@@ -23,9 +23,32 @@ test('a table with aligned columns is detected', () => {
     assert.equal(sortKeepSortedBlocks(input), block('| Z | Y |\n| :--- | ---: |\n| a | 2 |\n| b | 1 |\n'));
 });
 
-test('skip_lines counts from the marker, blank lines included', () => {
-    const input = block('\nkeep me\n- b\n- a\n', ' skip_lines=2');
-    assert.equal(sortKeepSortedBlocks(input), block('\nkeep me\n- a\n- b\n', ' skip_lines=2'));
+test('skip_lines counts from the first non-blank line', () => {
+    const input = block('\nkeep me\n- b\n- a\n', ' skip_lines=1');
+    assert.equal(sortKeepSortedBlocks(input), block('\nkeep me\n- a\n- b\n', ' skip_lines=1'));
+});
+
+test('skip_lines=2,-2 holds the header and footer of a table set off by blank lines', () => {
+    const opts = ' skip_lines=2,-2';
+    const input = block('\nItem | Cost\n--- | ---\nPear | 2\nApple | 1\n--- | ---\nTotal | 3\n\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('\nItem | Cost\n--- | ---\nApple | 1\nPear | 2\n--- | ---\nTotal | 3\n\n', opts));
+});
+
+test('a footer-only skip_lines keeps table detection for the header', () => {
+    const opts = ' skip_lines=-1';
+    const input = block('| Item |\n| --- |\n| b |\n| a |\n| Total |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| Item |\n| --- |\n| a |\n| b |\n| Total |\n', opts));
+});
+
+test('a skip_lines value that is not a number is ignored', () => {
+    const opts = ' skip_lines=abc';
+    const input = block('| Item |\n| --- |\n| b |\n| a |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| Item |\n| --- |\n| a |\n| b |\n', opts));
+});
+
+test('characters outside the BMP sort by code point, as UTF-8 bytes do', () => {
+    // U+1F600 is above U+FF61 by code point, though below it in UTF-16 units.
+    assert.equal(sortKeepSortedBlocks(block('- \u{1F600}\n- ｡\n')), block('- ｡\n- \u{1F600}\n'));
 });
 
 test('skip_lines=0 turns table detection off', () => {

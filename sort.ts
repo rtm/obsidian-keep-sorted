@@ -4,13 +4,13 @@ interface SortOptions {
     case: 'yes' | 'no';
     order: 'asc' | 'desc';
     numeric: boolean;
-    /** Lines held in place at the top and bottom of the block. Absent when
-     *  skip_lines is not given, which lets table detection decide. */
-    skipLines?: { head: number; tail: number };
+    /** Lines held in place at the top and bottom of the block. head is absent
+     *  unless skip_lines gives it, which lets table detection decide. */
+    skipLines: { head?: number; tail: number };
 }
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false };
+    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 } };
     for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
@@ -20,22 +20,37 @@ function parseOptions(str: string): SortOptions {
     return opts;
 }
 
-/** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both. */
-function parseSkipLines(val: string): { head: number; tail: number } {
-    const skip = { head: 0, tail: 0 };
+/** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
+ *  Parts that are not integers are ignored. */
+function parseSkipLines(val: string): { head?: number; tail: number } {
+    const skip: { head?: number; tail: number } = { tail: 0 };
     for (const part of val.split(',')) {
-        const n = parseInt(part, 10) || 0;
-        if (n > 0) skip.head = n;
-        else if (n < 0) skip.tail = -n;
+        if (!/^\s*-?\d+\s*$/.test(part)) continue;
+        const n = parseInt(part, 10);
+        if (n >= 0) skip.head = n;
+        else skip.tail = -n;
     }
     return skip;
 }
 
-/** Compares by character code, as google/keep-sorted does, rather than by
- *  locale, so uppercase sorts before lowercase. With numeric, runs of digits
- *  compare by value: PROGRESS_5 before PROGRESS_10. */
+/** Compares by code point, which orders the same as google/keep-sorted's
+ *  byte comparison of UTF-8; plain < on strings compares UTF-16 code units,
+ *  which misorders emoji and other characters outside the BMP. */
+function ordinal(x: string, y: string): number {
+    let i = 0;
+    while (i < x.length && i < y.length) {
+        const a = x.codePointAt(i)!;
+        const b = y.codePointAt(i)!;
+        if (a !== b) return a - b;
+        i += a > 0xffff ? 2 : 1;
+    }
+    return x.length - y.length;
+}
+
+/** Compares by character, as google/keep-sorted does, rather than by locale,
+ *  so uppercase sorts before lowercase. With numeric, runs of digits compare
+ *  by value: PROGRESS_5 before PROGRESS_10. */
 function compareKeys(a: string, b: string, numeric: boolean): number {
-    const ordinal = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
     if (!numeric) return ordinal(a, b);
     const runsA = a.match(/\d+|\D+/g) ?? [];
     const runsB = b.match(/\d+|\D+/g) ?? [];
@@ -51,8 +66,7 @@ function compareKeys(a: string, b: string, numeric: boolean): number {
  *  digits is smaller. */
 function compareDigits(x: string, y: string): number {
     const [p, q] = [x.replace(/^0+/, ''), y.replace(/^0+/, '')];
-    if (p.length !== q.length) return p.length - q.length;
-    return p < q ? -1 : p > q ? 1 : 0;
+    return p.length !== q.length ? p.length - q.length : ordinal(p, q);
 }
 
 function extractSortKey(line: string, options: SortOptions): string {
@@ -98,49 +112,44 @@ function sortBlock(body: string, options: SortOptions): string {
     const lines = body.split('\n');
     if (hasTrailingNewline && lines[lines.length - 1] === '') lines.pop();
 
-    // skip_lines counts from the markers, blank lines included, as in
-    // google/keep-sorted.
-    const { head, tail } = options.skipLines ?? { head: 0, tail: 0 };
-    const end = Math.max(head, lines.length - tail);
-    const top = lines.slice(0, head);
-    const bottom = lines.slice(end);
-    const middle = lines.slice(head, end);
-
-    // Blank lines at the edges of what is left stay where they are. Markdown
+    // Blank lines at the edges of the block stay where they are. Markdown
     // needs them to separate a table from the markers, and sorting would
     // otherwise carry them into the middle of the block.
     let lead = 0;
-    while (lead < middle.length && isBlank(middle[lead])) lead++;
-    let trail = middle.length;
-    while (trail > lead && isBlank(middle[trail - 1])) trail--;
-    const leading = middle.slice(0, lead);
-    const trailing = middle.slice(trail);
-    const content = middle.slice(lead, trail);
+    while (lead < lines.length && isBlank(lines[lead])) lead++;
+    let trail = lines.length;
+    while (trail > lead && isBlank(lines[trail - 1])) trail--;
+    const leading = lines.slice(0, lead);
+    const trailing = lines.slice(trail);
+    const content = lines.slice(lead, trail);
 
-    // Without skip_lines, a table's header and separator rows stay on top
-    // without being asked for; an explicit skip_lines, even 0, turns this off.
+    // skip_lines counts from the first and last non-blank lines. In
+    // google/keep-sorted it counts from the markers, which is the same
+    // unless blank lines border the block; here they always do around a table.
+    // Without a positive or zero skip_lines, a table's header and separator
+    // rows stay on top without being asked for.
     const isTable = content.length >= 2 && content[0].includes('|') && isSeparatorRow(content[1]);
-    const tableHead = options.skipLines === undefined && isTable ? 2 : 0;
-    const skipped = content.slice(0, tableHead);
-    const toSort = content.slice(tableHead);
+    const head = options.skipLines.head ?? (isTable ? 2 : 0);
+    const end = Math.max(head, content.length - options.skipLines.tail);
+    const top = content.slice(0, head);
+    const bottom = content.slice(end);
 
-    const groups = splitIntoGroups(toSort);
-
-    groups.sort((a, b) => {
-        const keyA = extractSortKey(a[0], options);
-        const keyB = extractSortKey(b[0], options);
-        const cmp = compareKeys(keyA, keyB, options.numeric);
+    // Each key is computed once, not on every comparison.
+    const keyed = splitIntoGroups(content.slice(head, end))
+        .map(group => ({ group, key: extractSortKey(group[0], options) }));
+    keyed.sort((a, b) => {
+        const cmp = compareKeys(a.key, b.key, options.numeric);
         return options.order === 'desc' ? -cmp : cmp;
     });
 
-    const sorted = groups.flat();
+    const sorted = keyed.flatMap(k => k.group);
 
     // Ensure ordered lists start from 1 after sorting
     if (sorted.length > 0) {
         sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, '$11. ');
     }
 
-    const sortedLines = [...top, ...leading, ...skipped, ...sorted, ...trailing, ...bottom];
+    const sortedLines = [...leading, ...top, ...sorted, ...bottom, ...trailing];
     return sortedLines.join('\n') + (hasTrailingNewline ? '\n' : '');
 }
 
