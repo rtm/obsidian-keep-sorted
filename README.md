@@ -43,9 +43,11 @@ Options can be added to the start marker:
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `order` | `asc`, `desc` | `asc` | Sort direction |
-| `case` | `yes`, `no` | `no` | Case-sensitive sorting |
-| `numeric` | `yes`, `no` | `no` | Numeric-aware sorting (e.g. 2 before 10) |
-| `skip_lines` | number | `0` | Number of lines at the top of the block to leave unsorted, counted from the first non-blank line. Tables need none; `skip_lines=0` turns table detection off. Blocks that counted a leading blank line in `skip_lines` should drop it by one. |
+| `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
+| `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10 |
+| `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted, counted from the markers with blank lines included: a positive number at the top, a negative one at the bottom. Without it, a table's header and separator rows are kept on top automatically; any `skip_lines`, even `0`, turns that off. |
+
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), so a block sorts the same way in both. Like it, the plugin compares characters by code rather than by language, so punctuation and accented letters sort by their character codes.
 
 ## Sort key extraction
 
