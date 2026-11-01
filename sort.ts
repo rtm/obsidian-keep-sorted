@@ -92,6 +92,10 @@ const indentOf = (s: string) => s.search(/\S/);
 const isBlank = (s: string) => s.trim() === '';
 /** An ordered list item's prefix: indent, number, the space after the dot. */
 const ORDERED_PREFIX = /^(\s*)(\d+)\.(\s)/;
+/** The markers, each alone on its line. A trailing \r is tolerated so a
+ *  CRLF file still sorts. */
+const START_MARKER = /^\s*%%\s*keep-sorted\s+start(.*?)%%[ \t]*\r?$/;
+const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
 
 /** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
 function isSeparatorRow(line: string): boolean {
@@ -111,13 +115,21 @@ function trimBlankEdges(lines: string[]): { leading: string[]; content: string[]
 
 /** Each line with the lines indented under it. With group=no, every line
  *  stands alone, as in google/keep-sorted. Either way a blank line stays
- *  with the line above it rather than sorting as an empty item. */
+ *  with the line above it rather than sorting as an empty item, and a
+ *  nested block, markers and all, stays with the item before it whatever
+ *  its indentation. */
 function splitIntoGroups(lines: string[], group: 'yes' | 'no'): string[][] {
     const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
+    let depth = 0;
     for (const line of lines) {
+        const isMarker = START_MARKER.test(line);
+        const inBlock = depth > 0 || isMarker;
+        if (isMarker) depth++;
+        else if (depth > 0 && END_MARKER.test(line)) depth--;
         const ind = indentOf(line);
-        if (groups.length === 0 || (ind >= 0 && (group === 'no' || ind <= baseIndent))) {
+        const startsItem = !inBlock && ind >= 0 && (group === 'no' || ind <= baseIndent);
+        if (groups.length === 0 || startsItem) {
             groups.push([line]);
         } else {
             groups[groups.length - 1].push(line);
@@ -173,9 +185,6 @@ export function wrapInMarkers(text: string): string {
     return `%% keep-sorted start %%\n${text}\n%% keep-sorted end %%`;
 }
 
-const START_MARKER = /%%\s*keep-sorted\s+start(.*?)%%[ \t]*$/;
-const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
-
 /** The line of the end marker that closes the block opened just before
  *  `from`, skipping over any blocks nested inside it; -1 if there is none. */
 function findBlockEnd(lines: string[], from: number): number {
@@ -194,8 +203,12 @@ function sortBlocksIn(lines: string[]): string[] {
     const out: string[] = [];
     for (let i = 0; i < lines.length; i++) {
         const start = START_MARKER.exec(lines[i]);
-        const end = start ? findBlockEnd(lines, i + 1) : -1;
-        if (!start || end < 0) {
+        if (!start) {
+            out.push(lines[i]);
+            continue;
+        }
+        const end = findBlockEnd(lines, i + 1);
+        if (end < 0) {
             out.push(lines[i]);
             continue;
         }
