@@ -126,11 +126,8 @@ function splitIntoGroups(lines: string[], group: 'yes' | 'no'): string[][] {
     return groups;
 }
 
-function sortBlock(body: string, options: SortOptions): string {
-    const hasTrailingNewline = body.endsWith('\n');
-    const lines = body.split('\n');
-    if (hasTrailingNewline && lines[lines.length - 1] === '') lines.pop();
-
+/** Sorts the lines between a pair of markers. */
+function sortBlock(lines: string[], options: SortOptions): string[] {
     // Blank lines at the edges of the block stay where they are. Markdown
     // needs them to separate a table from the markers, and sorting would
     // otherwise carry them into the middle of the block.
@@ -167,8 +164,7 @@ function sortBlock(body: string, options: SortOptions): string {
         sorted[0] = sorted[0].replace(ORDERED_PREFIX, `$1${start}.$3`);
     }
 
-    const sortedLines = [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
-    return sortedLines.join('\n') + (hasTrailingNewline ? '\n' : '');
+    return [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
 }
 
 /** Wraps text in start and end markers. The marker syntax lives in this file,
@@ -180,8 +176,10 @@ export function wrapInMarkers(text: string): string {
 export function sortKeepSortedBlocks(content: string): string {
     const regex = /(%%\s*keep-sorted\s+start(.*?)%%[ \t]*\n)([\s\S]*?)(%%\s*keep-sorted\s+end\s*%%)/g;
     return content.replace(regex, (_match: string, startMarker: string, optStr: string, body: string, endMarker: string) => {
-        const opts = parseOptions(optStr);
-        const sorted = sortBlock(body, opts);
+        const hasTrailingNewline = body.endsWith('\n');
+        const lines = body.split('\n');
+        if (hasTrailingNewline && lines[lines.length - 1] === '') lines.pop();
+        const sorted = sortBlock(lines, parseOptions(optStr)).join('\n') + (hasTrailingNewline ? '\n' : '');
         return startMarker + sorted + endMarker;
     });
 }
