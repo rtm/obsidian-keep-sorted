@@ -105,7 +105,7 @@ test('a held first item is not renumbered away', () => {
     assert.equal(sortKeepSortedBlocks(block('1. intro\n3. c\n2. b\n', opts)), block('1. intro\n2. b\n3. c\n', opts));
 });
 
-test('an ordered list keeps its starting number', () => {
+test('an ordered list keeps its starting number; the other numbers travel with their items', () => {
     assert.equal(sortKeepSortedBlocks(block('100. c\n101. a\n102. b\n')), block('100. a\n102. b\n100. c\n'));
 });
 

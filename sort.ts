@@ -87,6 +87,8 @@ function extractSortKey(line: string, options: SortOptions): string {
 
 const indentOf = (s: string) => s.search(/\S/);
 const isBlank = (s: string) => s.trim() === '';
+/** An ordered list item's prefix: indent, number, the space after the dot. */
+const ORDERED_PREFIX = /^(\s*)(\d+)\.(\s)/;
 
 /** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
 function isSeparatorRow(line: string): boolean {
@@ -154,9 +156,9 @@ function sortBlock(body: string, options: SortOptions): string {
     // Markdown takes an ordered list's start from its first item, so the
     // number that led the list before sorting leads it after, unless held
     // lines above start the list.
-    const start = region.content[0]?.match(/^\s*(\d+)\.\s/)?.[1];
+    const start = region.content[0]?.match(ORDERED_PREFIX)?.[2];
     if (start !== undefined && top.length === 0) {
-        sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, `$1${start}. `);
+        sorted[0] = sorted[0].replace(ORDERED_PREFIX, `$1${start}.$3`);
     }
 
     const sortedLines = [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
