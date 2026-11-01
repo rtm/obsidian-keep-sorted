@@ -189,9 +189,10 @@ function sortItems(lines: string[], options: SortOptions, keepStart: boolean): s
 }
 
 /** An item with the lines under it sorted as a list of their own, when
- *  nested=yes asks for it. */
+ *  nested=yes asks for it. A nested block is left as it is: sortBlocksIn
+ *  has already sorted it by its own options. */
 function sortUnder(group: string[], options: SortOptions): string[] {
-    if (options.nested !== 'yes' || group.length < 2) return group;
+    if (options.nested !== 'yes' || group.length < 2 || START_MARKER.test(group[0])) return group;
     return [group[0], ...sortItems(group.slice(1), options, true)];
 }
 

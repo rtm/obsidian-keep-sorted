@@ -187,6 +187,25 @@ test('nested=yes keeps the starting number of each ordered sublist', () => {
     assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n    5. y\n    5. z\n', opts));
 });
 
+test('nested=yes leaves an inner block to its own options', () => {
+    const opts = ' nested=yes';
+    const inner = '    %% keep-sorted start order=desc %%\n    - apple\n    - pear\n    %% keep-sorted end %%\n';
+    const innerSorted = '    %% keep-sorted start order=desc %%\n    - pear\n    - apple\n    %% keep-sorted end %%\n';
+    const input = block(`- Vegetables\n- Fruit\n${inner}`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Fruit\n${innerSorted}- Vegetables\n`, opts));
+});
+
+test('nested=yes applies order=desc at every level', () => {
+    const opts = ' nested=yes order=desc';
+    assert.equal(sortKeepSortedBlocks(block('- a\n    - y\n    - z\n- b\n', opts)), block('- b\n- a\n    - z\n    - y\n', opts));
+});
+
+test('nested=yes keeps a prose continuation line with its item', () => {
+    const opts = ' nested=yes';
+    const input = block('- b\n  about b\n    - z\n    - y\n- a\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n  about b\n    - y\n    - z\n', opts));
+});
+
 test('without nested, sub-items keep their order', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n    - y\n- a\n')), block('- a\n- b\n    - z\n    - y\n'));
 });
