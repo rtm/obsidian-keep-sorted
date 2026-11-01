@@ -7,6 +7,9 @@ interface SortOptions {
     skipLines: SkipLines;
     /** Whether indented continuation lines move with the item above them. */
     group: 'yes' | 'no';
+    /** Whether the items under each item are sorted too, at every level. Not
+     *  in google/keep-sorted, which relies on nested blocks instead. */
+    nested: 'yes' | 'no';
 }
 
 /** Lines held in place at the top and bottom of the block. head is absent
@@ -14,13 +17,14 @@ interface SortOptions {
 type SkipLines = { head?: number; tail: number };
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes' };
+    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no' };
     for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
         else if (key === 'group') opts.group = val as 'yes' | 'no';
+        else if (key === 'nested') opts.nested = val as 'yes' | 'no';
     }
     return opts;
 }
@@ -164,13 +168,13 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     return [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
 }
 
-/** Sorts a list's items. With keepStart, the number that led an ordered list
- *  before sorting leads it after, since Markdown takes the list's start from
- *  its first item. */
+/** Sorts a list's items, and with nested=yes the items under each of them.
+ *  With keepStart, the number that led an ordered list before sorting leads
+ *  it after, since Markdown takes the list's start from its first item. */
 function sortItems(lines: string[], options: SortOptions, keepStart: boolean): string[] {
     // Each key is computed once, not on every comparison.
     const keyed = splitIntoGroups(lines, options.group)
-        .map(group => ({ group, key: extractSortKey(group[0], options) }));
+        .map(group => ({ group: sortUnder(group, options), key: extractSortKey(group[0], options) }));
     keyed.sort((a, b) => {
         const cmp = compareKeys(a.key, b.key, options.numeric);
         return options.order === 'desc' ? -cmp : cmp;
@@ -182,6 +186,13 @@ function sortItems(lines: string[], options: SortOptions, keepStart: boolean): s
         sorted[0] = sorted[0].replace(ORDERED_PREFIX, `$1${start}.$3`);
     }
     return sorted;
+}
+
+/** An item with the lines under it sorted as a list of their own, when
+ *  nested=yes asks for it. */
+function sortUnder(group: string[], options: SortOptions): string[] {
+    if (options.nested !== 'yes' || group.length < 2) return group;
+    return [group[0], ...sortItems(group.slice(1), options, true)];
 }
 
 /** Wraps text in start and end markers. The marker syntax lives in this file,
