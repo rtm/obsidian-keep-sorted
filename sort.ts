@@ -26,7 +26,8 @@ function parseOptions(str: string): SortOptions {
     const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no' };
     // A value with spaces, such as a header name, is written in double quotes.
     for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
-        const quoted = raw.startsWith('"');
+        // An unterminated quote is taken literally, so the warning shows what was written.
+        const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
         const val = quoted ? raw.slice(1, -1) : raw;
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
@@ -133,8 +134,7 @@ const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
 /** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
 function isSeparatorRow(line: string): boolean {
     if (!line.includes('|') && !/^\s*:?-{3,}:?\s*$/.test(line)) return false;
-    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
-    return cells.every(c => /^\s*:?-+:?\s*$/.test(c));
+    return splitCells(line).every(c => /^:?-+:?$/.test(c));
 }
 
 /** A table row's cells, trimmed. Only an unescaped pipe divides cells: an
@@ -143,15 +143,16 @@ function splitCells(row: string): string[] {
     return row.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim());
 }
 
-/** The 0-based index of the column, or undefined with the reason it was not
- *  found. A name matches a header after formatting is stripped, ignoring case. */
-function findColumn(column: Column, header: string, options: SortOptions): number | string {
+/** The 0-based index of the column, or the reason it was not found. A name
+ *  matches a header after formatting is stripped, ignoring case; the first
+ *  match wins. */
+function findColumn(column: Column, header: string, options: SortOptions): { index: number } | { error: string } {
     if ('position' in column) {
-        return column.position >= 1 ? column.position - 1 : `column=${column.position} is not a position`;
+        return column.position >= 1 ? { index: column.position - 1 } : { error: `column=${column.position} is not a position` };
     }
     const fold = (s: string) => extractSortKey(s, { ...options, case: 'no' });
-    const idx = splitCells(header).map(fold).indexOf(fold(column.name));
-    return idx >= 0 ? idx : `no column is headed "${column.name}"`;
+    const index = splitCells(header).map(fold).indexOf(fold(column.name));
+    return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
 }
 
 const warned = new Set<string>();
@@ -221,12 +222,13 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     let sorted: string[];
     if (options.column) {
         // A bad column must never scramble the table, so the block is left as it is.
-        const column = isTable ? findColumn(options.column, content[0], options) : 'column= needs a table';
-        if (typeof column === 'string') {
-            warnOnce(`${column}; the block was left unsorted`);
+        const column = isTable ? findColumn(options.column, content[0], options) : { error: 'column= needs a table' };
+        if ('error' in column) {
+            // The first line tells the blocks apart, so each bad block warns.
+            warnOnce(`${column.error}; the block starting "${content[0] ?? ''}" was left unsorted`);
             return lines;
         }
-        sorted = sortRows(region.content, options, column);
+        sorted = sortRows(region.content, options, column.index);
     } else {
         // Held lines above start the list, so its numbering is left alone.
         sorted = sortItems(region.content, options, top.length === 0);

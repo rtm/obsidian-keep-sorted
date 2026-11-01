@@ -230,6 +230,29 @@ test('a quoted column name may contain spaces', () => {
     assert.equal(sortKeepSortedBlocks(input), block(`| Task | Due date |\n| --- | --- |\n| a | 2026-01-01 |\n| b | 2026-02-01 |\n`, opts));
 });
 
+test('column with case=no folds the cells', () => {
+    const opts = ' column=2 case=no';
+    assert.equal(sortKeepSortedBlocks(table('| a | beta |\n| b | Alpha |\n| c | Gamma |', opts)),
+        table('| b | Alpha |\n| a | beta |\n| c | Gamma |', opts));
+});
+
+test('a header that matches twice picks the first column', () => {
+    const opts = ' column=Name';
+    const input = block('| Name | Name |\n| --- | --- |\n| b | x |\n| a | y |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| Name | Name |\n| --- | --- |\n| a | y |\n| b | x |\n', opts));
+});
+
+test('column respects an explicit skip_lines', () => {
+    const opts = ' column=2 skip_lines=2,-1';
+    const input = table('| b | y |\n| a | x |\n| Total | 2 |', opts);
+    assert.equal(sortKeepSortedBlocks(input), table('| a | x |\n| b | y |\n| Total | 2 |', opts));
+});
+
+test('an unterminated quote is taken literally and leaves the block as it is', () => {
+    const input = table('| b | x |\n| a | y |', ' column="Due date');
+    assert.equal(sortKeepSortedBlocks(input), input);
+});
+
 test('an escaped pipe does not split a cell', () => {
     const opts = ' column=3 numeric=yes order=desc';
     const rows = '| Faucet | [[Ferguson]] | $1,250.00 |\n| Valve | [[Ferguson\\|Ferguson Plumbing]] | $89.50 |\n| Sink | Floor & Decor | |\n| Drain | Home Depot | $212 |';
