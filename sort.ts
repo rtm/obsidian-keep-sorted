@@ -151,10 +151,12 @@ function sortBlock(body: string, options: SortOptions): string {
 
     const sorted = keyed.flatMap(k => k.group);
 
-    // Ensure ordered lists start from 1 after sorting, unless held lines above
-    // start the list.
-    if (sorted.length > 0 && top.length === 0) {
-        sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, '$11. ');
+    // Markdown takes an ordered list's start from its first item, so the
+    // number that led the list before sorting leads it after, unless held
+    // lines above start the list.
+    const start = region.content[0]?.match(/^\s*(\d+)\.\s/)?.[1];
+    if (start !== undefined && top.length === 0) {
+        sorted[0] = sorted[0].replace(/^(\s*)\d+\.\s/, `$1${start}. `);
     }
 
     const sortedLines = [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
