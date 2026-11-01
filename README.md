@@ -16,6 +16,8 @@ Wrap any list in `keep-sorted` markers using Obsidian comment syntax:
 
 The region is sorted automatically once the file has gone five seconds without changes, so lines do not move under the cursor while you type.
 
+An ordered list keeps the number its first item had before sorting, so a list that starts at `100.` still starts at `100.`; the other items keep their own numbers, which Markdown ignores when it renders the list.
+
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
 ```
