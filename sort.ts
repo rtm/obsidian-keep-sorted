@@ -156,10 +156,20 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     const top = content.slice(0, head);
     const bottom = content.slice(end);
 
-    // Each key is computed once, not on every comparison.
     // Blank lines between the held lines and the rest stay in place too.
     const region = trimBlankEdges(content.slice(head, end));
-    const keyed = splitIntoGroups(region.content, options.group)
+    // Held lines above start the list, so its numbering is left alone.
+    const sorted = sortItems(region.content, options, top.length === 0);
+
+    return [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
+}
+
+/** Sorts a list's items. With keepStart, the number that led an ordered list
+ *  before sorting leads it after, since Markdown takes the list's start from
+ *  its first item. */
+function sortItems(lines: string[], options: SortOptions, keepStart: boolean): string[] {
+    // Each key is computed once, not on every comparison.
+    const keyed = splitIntoGroups(lines, options.group)
         .map(group => ({ group, key: extractSortKey(group[0], options) }));
     keyed.sort((a, b) => {
         const cmp = compareKeys(a.key, b.key, options.numeric);
@@ -167,16 +177,11 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     });
 
     const sorted = keyed.flatMap(k => k.group);
-
-    // Markdown takes an ordered list's start from its first item, so the
-    // number that led the list before sorting leads it after, unless held
-    // lines above start the list.
-    const start = region.content[0]?.match(ORDERED_PREFIX)?.[2];
-    if (start !== undefined && top.length === 0) {
+    const start = lines[0]?.match(ORDERED_PREFIX)?.[2];
+    if (keepStart && start !== undefined) {
         sorted[0] = sorted[0].replace(ORDERED_PREFIX, `$1${start}.$3`);
     }
-
-    return [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
+    return sorted;
 }
 
 /** Wraps text in start and end markers. The marker syntax lives in this file,
