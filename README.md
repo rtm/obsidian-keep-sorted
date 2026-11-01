@@ -47,6 +47,7 @@ Options can be added to the start marker:
 | `order` | `asc`, `desc` | `asc` | Sort direction |
 | `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10 |
+| `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
 These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted). Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
@@ -60,7 +61,7 @@ Sort keys are derived by stripping the following from each line:
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
 
-Multi-line items (continuation lines indented deeper than the first line) are kept together as a group.
+Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
 
 ## Commands
 

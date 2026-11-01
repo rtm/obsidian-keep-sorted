@@ -5,6 +5,8 @@ interface SortOptions {
     order: 'asc' | 'desc';
     numeric: boolean;
     skipLines: SkipLines;
+    /** Whether indented continuation lines move with the item above them. */
+    group: 'yes' | 'no';
 }
 
 /** Lines held in place at the top and bottom of the block. head is absent
@@ -12,12 +14,13 @@ interface SortOptions {
 type SkipLines = { head?: number; tail: number };
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 } };
+    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes' };
     for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
+        else if (key === 'group') opts.group = val as 'yes' | 'no';
     }
     return opts;
 }
@@ -106,7 +109,10 @@ function trimBlankEdges(lines: string[]): { leading: string[]; content: string[]
     return { leading: lines.slice(0, lead), content: lines.slice(lead, trail), trailing: lines.slice(trail) };
 }
 
-function splitIntoGroups(lines: string[]): string[][] {
+/** Each line with the lines indented under it. With group=no, every line
+ *  stands alone, as in google/keep-sorted. */
+function splitIntoGroups(lines: string[], group: 'yes' | 'no'): string[][] {
+    if (group === 'no') return lines.map(line => [line]);
     const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
     for (const line of lines) {
@@ -144,7 +150,7 @@ function sortBlock(body: string, options: SortOptions): string {
     // Each key is computed once, not on every comparison.
     // Blank lines between the held lines and the rest stay in place too.
     const region = trimBlankEdges(content.slice(head, end));
-    const keyed = splitIntoGroups(region.content)
+    const keyed = splitIntoGroups(region.content, options.group)
         .map(group => ({ group, key: extractSortKey(group[0], options) }));
     keyed.sort((a, b) => {
         const cmp = compareKeys(a.key, b.key, options.numeric);
