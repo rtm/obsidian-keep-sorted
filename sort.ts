@@ -173,13 +173,39 @@ export function wrapInMarkers(text: string): string {
     return `%% keep-sorted start %%\n${text}\n%% keep-sorted end %%`;
 }
 
+const START_MARKER = /%%\s*keep-sorted\s+start(.*?)%%[ \t]*$/;
+const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
+
+/** The line of the end marker that closes the block opened just before
+ *  `from`, skipping over any blocks nested inside it; -1 if there is none. */
+function findBlockEnd(lines: string[], from: number): number {
+    let depth = 1;
+    for (let i = from; i < lines.length; i++) {
+        if (START_MARKER.test(lines[i])) depth++;
+        else if (END_MARKER.test(lines[i]) && --depth === 0) return i;
+    }
+    return -1;
+}
+
+/** Sorts every block in the lines. A block inside another is sorted first,
+ *  and then moves with the item it is indented under when the outer block
+ *  is sorted. A start marker with no end marker leaves the rest untouched. */
+function sortBlocksIn(lines: string[]): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+        const start = START_MARKER.exec(lines[i]);
+        const end = start ? findBlockEnd(lines, i + 1) : -1;
+        if (!start || end < 0) {
+            out.push(lines[i]);
+            continue;
+        }
+        const body = sortBlocksIn(lines.slice(i + 1, end));
+        out.push(lines[i], ...sortBlock(body, parseOptions(start[1])), lines[end]);
+        i = end;
+    }
+    return out;
+}
+
 export function sortKeepSortedBlocks(content: string): string {
-    const regex = /(%%\s*keep-sorted\s+start(.*?)%%[ \t]*\n)([\s\S]*?)(%%\s*keep-sorted\s+end\s*%%)/g;
-    return content.replace(regex, (_match: string, startMarker: string, optStr: string, body: string, endMarker: string) => {
-        const hasTrailingNewline = body.endsWith('\n');
-        const lines = body.split('\n');
-        if (hasTrailingNewline && lines[lines.length - 1] === '') lines.pop();
-        const sorted = sortBlock(lines, parseOptions(optStr)).join('\n') + (hasTrailingNewline ? '\n' : '');
-        return startMarker + sorted + endMarker;
-    });
+    return sortBlocksIn(content.split('\n')).join('\n');
 }

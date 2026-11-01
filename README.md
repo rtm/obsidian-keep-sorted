@@ -34,6 +34,19 @@ Tables also work: the header and separator rows are recognized and stay on top. 
 
 Rows are sorted by their full text, which effectively sorts by the first column.
 
+A block can sit inside another block. The inner block is sorted on its own, and, indented under a list item, it moves with that item when the outer block is sorted:
+
+```
+%% keep-sorted start %%
+- Vegetables
+- Fruit
+    %% keep-sorted start %%
+    - pear
+    - apple
+    %% keep-sorted end %%
+%% keep-sorted end %%
+```
+
 ## Options
 
 Options can be added to the start marker:
