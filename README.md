@@ -32,7 +32,15 @@ Tables also work: the header and separator rows are recognized and stay on top. 
 %% keep-sorted end %%
 ```
 
-Rows are sorted by their full text, which effectively sorts by the first column.
+Rows are sorted by their full text, which effectively sorts by the first column. To sort by another column, name it by position or by its header text, in double quotes if the header has spaces:
+
+```
+%% keep-sorted start column=Color %%
+%% keep-sorted start column=2 %%
+%% keep-sorted start column="Due date" numeric=yes order=desc %%
+```
+
+Cells are compared the way list items are, by the text you see; an escaped pipe (`\|`, as in an aliased wikilink) stays inside its cell. With `numeric=yes`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value. Rows whose cells tie are ordered by their full text, and rows with an empty cell in that column go last whichever way the table is sorted. A `column` that names no column, or is given on a block that is not a table, leaves the block unsorted and logs a warning in the developer console.
 
 A block can sit inside another block. The inner block is sorted on its own, and, indented under a list item, it moves with that item when the outer block is sorted:
 
@@ -75,9 +83,10 @@ Options can be added to the start marker:
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10 |
 | `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
 | `nested` | `yes`, `no` | `no` | Also sort the items under each item, at every level, so one pair of markers sorts a whole outline. Has no effect with `group=no`, which leaves nothing under an item. Not in Google's keep-sorted. |
+| `column` | a position such as `2`, or a header such as `Color` or `"Due date"` | none | Sort a table by one column instead of by each row's full text. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested` and `column`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 

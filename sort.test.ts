@@ -210,6 +210,63 @@ test('without nested, sub-items keep their order', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n    - y\n- a\n')), block('- a\n- b\n    - z\n    - y\n'));
 });
 
+const table = (rows: string, opts: string) => block(`\n| Name | Color |\n| --- | --- |\n${rows}\n`, opts);
+
+test('column=N sorts a table by the Nth cell', () => {
+    const opts = ' column=2';
+    assert.equal(sortKeepSortedBlocks(table('| Dog | Brown |\n| Cat | Black |\n| Bird | Red |', opts)),
+        table('| Cat | Black |\n| Dog | Brown |\n| Bird | Red |', opts));
+});
+
+test('column=Name finds the header, ignoring case and formatting', () => {
+    const opts = ' column=color';
+    const input = block(`\n| Name | **Color** |\n| --- | ---: |\n| Dog | Brown |\n| Cat | Black |\n`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`\n| Name | **Color** |\n| --- | ---: |\n| Cat | Black |\n| Dog | Brown |\n`, opts));
+});
+
+test('a quoted column name may contain spaces', () => {
+    const opts = ' column="Due date"';
+    const input = block(`| Task | Due date |\n| --- | --- |\n| b | 2026-02-01 |\n| a | 2026-01-01 |\n`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`| Task | Due date |\n| --- | --- |\n| a | 2026-01-01 |\n| b | 2026-02-01 |\n`, opts));
+});
+
+test('an escaped pipe does not split a cell', () => {
+    const opts = ' column=3 numeric=yes order=desc';
+    const rows = '| Faucet | [[Ferguson]] | $1,250.00 |\n| Valve | [[Ferguson\\|Ferguson Plumbing]] | $89.50 |\n| Sink | Floor & Decor | |\n| Drain | Home Depot | $212 |';
+    const input = block(`\n| Item | Vendor | Price |\n| --- | --- | ---: |\n${rows}\n\n`, opts);
+    const sorted = '| Faucet | [[Ferguson]] | $1,250.00 |\n| Drain | Home Depot | $212 |\n| Valve | [[Ferguson\\|Ferguson Plumbing]] | $89.50 |\n| Sink | Floor & Decor | |';
+    assert.equal(sortKeepSortedBlocks(input), block(`\n| Item | Vendor | Price |\n| --- | --- | ---: |\n${sorted}\n\n`, opts));
+});
+
+test('numeric=yes orders signed, decimal and percent cells by value', () => {
+    const opts = ' column=2 numeric=yes';
+    const input = table('| a | 12% |\n| b | -3.5 |\n| c | 1.25 |\n| d | 1.5 |\n| e | v10 |\n| f | v2 |', opts);
+    assert.equal(sortKeepSortedBlocks(input), table('| b | -3.5 |\n| c | 1.25 |\n| d | 1.5 |\n| a | 12% |\n| f | v2 |\n| e | v10 |', opts));
+});
+
+test('tied cells are ordered by the full row, whatever order they came in', () => {
+    const opts = ' column=2';
+    const expected = table('| a | x |\n| b | x |\n| c | y |', opts);
+    assert.equal(sortKeepSortedBlocks(table('| b | x |\n| c | y |\n| a | x |', opts)), expected);
+    assert.equal(sortKeepSortedBlocks(table('| c | y |\n| a | x |\n| b | x |', opts)), expected);
+});
+
+test('empty and missing cells sort last in both directions', () => {
+    const asc = ' column=2';
+    assert.equal(sortKeepSortedBlocks(table('| a | |\n| b |\n| c | x |', asc)), table('| c | x |\n| a | |\n| b |', asc));
+    const desc = ' column=2 order=desc';
+    assert.equal(sortKeepSortedBlocks(table('| a | |\n| c | x |\n| d | y |', desc)), table('| d | y |\n| c | x |\n| a | |', desc));
+});
+
+test('a bad column leaves the block as it is', () => {
+    for (const opts of [' column=0', ' column=Weight', ' column=1.5']) {
+        const input = table('| b | x |\n| a | y |', opts);
+        assert.equal(sortKeepSortedBlocks(input), input);
+    }
+    const list = block('- b\n- a\n', ' column=1');
+    assert.equal(sortKeepSortedBlocks(list), list);
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
