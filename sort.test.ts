@@ -122,6 +122,16 @@ test('group=no sorts every line on its own', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n- a\n    - y\n', opts)), block('- a\n- b\n    - y\n    - z\n', opts));
 });
 
+test('group=no sorts a prose continuation line as an item of its own', () => {
+    const opts = ' group=no';
+    assert.equal(sortKeepSortedBlocks(block('- b\n  more about b\n- a\n', opts)), block('- a\n- b\n  more about b\n', opts));
+});
+
+test('with group=no a blank line stays with the line above it', () => {
+    const opts = ' group=no';
+    assert.equal(sortKeepSortedBlocks(block('- b\n\n- a\n', opts)), block('- a\n- b\n\n', opts));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });

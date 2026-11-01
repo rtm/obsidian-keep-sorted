@@ -110,14 +110,14 @@ function trimBlankEdges(lines: string[]): { leading: string[]; content: string[]
 }
 
 /** Each line with the lines indented under it. With group=no, every line
- *  stands alone, as in google/keep-sorted. */
+ *  stands alone, as in google/keep-sorted. Either way a blank line stays
+ *  with the line above it rather than sorting as an empty item. */
 function splitIntoGroups(lines: string[], group: 'yes' | 'no'): string[][] {
-    if (group === 'no') return lines.map(line => [line]);
     const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
     for (const line of lines) {
         const ind = indentOf(line);
-        if (groups.length === 0 || (ind >= 0 && ind <= baseIndent)) {
+        if (groups.length === 0 || (ind >= 0 && (group === 'no' || ind <= baseIndent))) {
             groups.push([line]);
         } else {
             groups[groups.length - 1].push(line);
