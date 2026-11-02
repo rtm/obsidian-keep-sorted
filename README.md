@@ -47,6 +47,19 @@ A block can sit inside another block. The inner block is sorted on its own, and,
 %% keep-sorted end %%
 ```
 
+To sort every level of an outline with one pair of markers, use `nested=yes` instead:
+
+```
+%% keep-sorted start nested=yes %%
+- Vegetables
+    - zucchini
+    - carrot
+- Fruit
+    - pear
+    - apple
+%% keep-sorted end %%
+```
+
 ## Options
 
 Options can be added to the start marker:
@@ -61,9 +74,10 @@ Options can be added to the start marker:
 | `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10 |
 | `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
+| `nested` | `yes`, `no` | `no` | Also sort the items under each item, at every level, so one pair of markers sorts a whole outline. Has no effect with `group=no`, which leaves nothing under an item. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted). Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 

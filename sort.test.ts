@@ -174,6 +174,42 @@ test('a start marker without an end marker leaves the text alone', () => {
     assert.equal(sortKeepSortedBlocks(input), input);
 });
 
+test('nested=yes sorts the items under each item at every level', () => {
+    const opts = ' nested=yes';
+    const input = block('- Vegetables\n    - zucchini\n    - carrot\n- Fruit\n    - pear\n    - apple\n        - honeycrisp\n        - fuji\n', opts);
+    const expected = block('- Fruit\n    - apple\n        - fuji\n        - honeycrisp\n    - pear\n- Vegetables\n    - carrot\n    - zucchini\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
+test('nested=yes keeps the starting number of each ordered sublist', () => {
+    const opts = ' nested=yes';
+    const input = block('- b\n    5. z\n    6. y\n- a\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n    5. y\n    5. z\n', opts));
+});
+
+test('nested=yes leaves an inner block to its own options', () => {
+    const opts = ' nested=yes';
+    const inner = '    %% keep-sorted start order=desc %%\n    - apple\n    - pear\n    %% keep-sorted end %%\n';
+    const innerSorted = '    %% keep-sorted start order=desc %%\n    - pear\n    - apple\n    %% keep-sorted end %%\n';
+    const input = block(`- Vegetables\n- Fruit\n${inner}`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Fruit\n${innerSorted}- Vegetables\n`, opts));
+});
+
+test('nested=yes applies order=desc at every level', () => {
+    const opts = ' nested=yes order=desc';
+    assert.equal(sortKeepSortedBlocks(block('- a\n    - y\n    - z\n- b\n', opts)), block('- b\n- a\n    - z\n    - y\n', opts));
+});
+
+test('nested=yes keeps a prose continuation line with its item', () => {
+    const opts = ' nested=yes';
+    const input = block('- b\n  about b\n    - z\n    - y\n- a\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n  about b\n    - y\n    - z\n', opts));
+});
+
+test('without nested, sub-items keep their order', () => {
+    assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n    - y\n- a\n')), block('- a\n- b\n    - z\n    - y\n'));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
