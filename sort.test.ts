@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
 
+/** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
-    `%% keep-sorted start${opts} %%\n${body}%% keep-sorted end %%`;
+    `%% keep-sorted start${opts && ' ' + opts} %%\n${body}%% keep-sorted end %%`;
 
 test('sorts a plain list', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n- a\n')), block('- a\n- b\n'));
@@ -24,24 +25,24 @@ test('a table with aligned columns is detected', () => {
 });
 
 test('skip_lines counts from the first non-blank line', () => {
-    const input = block('\nkeep me\n- b\n- a\n', ' skip_lines=1');
-    assert.equal(sortKeepSortedBlocks(input), block('\nkeep me\n- a\n- b\n', ' skip_lines=1'));
+    const input = block('\nkeep me\n- b\n- a\n', 'skip_lines=1');
+    assert.equal(sortKeepSortedBlocks(input), block('\nkeep me\n- a\n- b\n', 'skip_lines=1'));
 });
 
 test('skip_lines=2,-2 holds the header and footer of a table set off by blank lines', () => {
-    const opts = ' skip_lines=2,-2';
+    const opts = 'skip_lines=2,-2';
     const input = block('\nItem | Cost\n--- | ---\nPear | 2\nApple | 1\n--- | ---\nTotal | 3\n\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('\nItem | Cost\n--- | ---\nApple | 1\nPear | 2\n--- | ---\nTotal | 3\n\n', opts));
 });
 
 test('a footer-only skip_lines keeps table detection for the header', () => {
-    const opts = ' skip_lines=-1';
+    const opts = 'skip_lines=-1';
     const input = block('| Item |\n| --- |\n| b |\n| a |\n| Total |\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('| Item |\n| --- |\n| a |\n| b |\n| Total |\n', opts));
 });
 
 test('a skip_lines value that is not a number is ignored', () => {
-    const opts = ' skip_lines=abc';
+    const opts = 'skip_lines=abc';
     const input = block('| Item |\n| --- |\n| b |\n| a |\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('| Item |\n| --- |\n| a |\n| b |\n', opts));
 });
@@ -52,8 +53,8 @@ test('characters outside the BMP sort by code point, as UTF-8 bytes do', () => {
 });
 
 test('skip_lines=0 turns table detection off', () => {
-    const input = block('| b |\n| --- |\n| a |\n', ' skip_lines=0');
-    assert.equal(sortKeepSortedBlocks(input), block('| --- |\n| a |\n| b |\n', ' skip_lines=0'));
+    const input = block('| b |\n| --- |\n| a |\n', 'skip_lines=0');
+    assert.equal(sortKeepSortedBlocks(input), block('| --- |\n| a |\n| b |\n', 'skip_lines=0'));
 });
 
 test('a table without outer pipes is detected', () => {
@@ -62,12 +63,12 @@ test('a table without outer pipes is detected', () => {
 });
 
 test('a negative skip_lines holds lines at the bottom', () => {
-    assert.equal(sortKeepSortedBlocks(block('- c\n- b\n- a\n', ' skip_lines=-1')), block('- b\n- c\n- a\n', ' skip_lines=-1'));
+    assert.equal(sortKeepSortedBlocks(block('- c\n- b\n- a\n', 'skip_lines=-1')), block('- b\n- c\n- a\n', 'skip_lines=-1'));
 });
 
 test('skip_lines=2,-2 holds a table header and footer', () => {
-    const input = block('Item | Cost\n--- | ---\nPear | 2\nApple | 1\n--- | ---\nTotal | 3\n', ' skip_lines=2,-2');
-    assert.equal(sortKeepSortedBlocks(input), block('Item | Cost\n--- | ---\nApple | 1\nPear | 2\n--- | ---\nTotal | 3\n', ' skip_lines=2,-2'));
+    const input = block('Item | Cost\n--- | ---\nPear | 2\nApple | 1\n--- | ---\nTotal | 3\n', 'skip_lines=2,-2');
+    assert.equal(sortKeepSortedBlocks(input), block('Item | Cost\n--- | ---\nApple | 1\nPear | 2\n--- | ---\nTotal | 3\n', 'skip_lines=2,-2'));
 });
 
 test('sorting is case-sensitive by default, uppercase first', () => {
@@ -75,12 +76,12 @@ test('sorting is case-sensitive by default, uppercase first', () => {
 });
 
 test('case=no sorts case-insensitively', () => {
-    const opts = ' case=no';
+    const opts = 'case=no';
     assert.equal(sortKeepSortedBlocks(block('- Bravo\n- alpha\n- Delta\n- charlie\n', opts)), block('- alpha\n- Bravo\n- charlie\n- Delta\n', opts));
 });
 
 test('numeric=yes compares runs of digits by value', () => {
-    const opts = ' numeric=yes';
+    const opts = 'numeric=yes';
     const input = block('- PROGRESS_100\n- PROGRESS_10\n- PROGRESS_1\n- PROGRESS_50\n- PROGRESS_5\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('- PROGRESS_1\n- PROGRESS_5\n- PROGRESS_10\n- PROGRESS_50\n- PROGRESS_100\n', opts));
 });
@@ -90,18 +91,18 @@ test('without numeric, digits compare as characters', () => {
 });
 
 test('blank lines between held lines and the sorted items stay in place', () => {
-    const opts = ' skip_lines=1 order=desc';
+    const opts = 'skip_lines=1 order=desc';
     assert.equal(sortKeepSortedBlocks(block('Heading\n\n- a\n- b\n', opts)), block('Heading\n\n- b\n- a\n', opts));
-    const foot = ' skip_lines=-1';
+    const foot = 'skip_lines=-1';
     assert.equal(sortKeepSortedBlocks(block('- c\n- b\n\nTotal\n', foot)), block('- b\n- c\n\nTotal\n', foot));
 });
 
 test('skip_lines accepts a leading plus sign', () => {
-    assert.equal(sortKeepSortedBlocks(block('keep\n- b\n- a\n', ' skip_lines=+1')), block('keep\n- a\n- b\n', ' skip_lines=+1'));
+    assert.equal(sortKeepSortedBlocks(block('keep\n- b\n- a\n', 'skip_lines=+1')), block('keep\n- a\n- b\n', 'skip_lines=+1'));
 });
 
 test('a held first item is not renumbered away', () => {
-    const opts = ' skip_lines=1';
+    const opts = 'skip_lines=1';
     assert.equal(sortKeepSortedBlocks(block('1. intro\n3. c\n2. b\n', opts)), block('1. intro\n2. b\n3. c\n', opts));
 });
 
@@ -118,17 +119,17 @@ test('indented lines move with the item above them', () => {
 });
 
 test('group=no sorts every line on its own', () => {
-    const opts = ' group=no';
+    const opts = 'group=no';
     assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n- a\n    - y\n', opts)), block('- a\n- b\n    - y\n    - z\n', opts));
 });
 
 test('group=no sorts a prose continuation line as an item of its own', () => {
-    const opts = ' group=no';
+    const opts = 'group=no';
     assert.equal(sortKeepSortedBlocks(block('- b\n  more about b\n- a\n', opts)), block('- a\n- b\n  more about b\n', opts));
 });
 
 test('with group=no a blank line stays with the line above it', () => {
-    const opts = ' group=no';
+    const opts = 'group=no';
     assert.equal(sortKeepSortedBlocks(block('- b\n\n- a\n', opts)), block('- a\n- b\n\n', opts));
 });
 
@@ -165,8 +166,8 @@ test('a file with CRLF line endings is sorted and keeps them', () => {
 });
 
 test('two blocks in one file are sorted separately', () => {
-    const input = `${block('- b\n- a\n')}\ntext\n${block('- d\n- c\n', ' order=desc')}\n`;
-    assert.equal(sortKeepSortedBlocks(input), `${block('- a\n- b\n')}\ntext\n${block('- d\n- c\n', ' order=desc')}\n`);
+    const input = `${block('- b\n- a\n')}\ntext\n${block('- d\n- c\n', 'order=desc')}\n`;
+    assert.equal(sortKeepSortedBlocks(input), `${block('- a\n- b\n')}\ntext\n${block('- d\n- c\n', 'order=desc')}\n`);
 });
 
 test('a start marker without an end marker leaves the text alone', () => {
@@ -175,20 +176,20 @@ test('a start marker without an end marker leaves the text alone', () => {
 });
 
 test('nested=yes sorts the items under each item at every level', () => {
-    const opts = ' nested=yes';
+    const opts = 'nested=yes';
     const input = block('- Vegetables\n    - zucchini\n    - carrot\n- Fruit\n    - pear\n    - apple\n        - honeycrisp\n        - fuji\n', opts);
     const expected = block('- Fruit\n    - apple\n        - fuji\n        - honeycrisp\n    - pear\n- Vegetables\n    - carrot\n    - zucchini\n', opts);
     assert.equal(sortKeepSortedBlocks(input), expected);
 });
 
 test('nested=yes keeps the starting number of each ordered sublist', () => {
-    const opts = ' nested=yes';
+    const opts = 'nested=yes';
     const input = block('- b\n    5. z\n    6. y\n- a\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n    5. y\n    5. z\n', opts));
 });
 
 test('nested=yes leaves an inner block to its own options', () => {
-    const opts = ' nested=yes';
+    const opts = 'nested=yes';
     const inner = '    %% keep-sorted start order=desc %%\n    - apple\n    - pear\n    %% keep-sorted end %%\n';
     const innerSorted = '    %% keep-sorted start order=desc %%\n    - pear\n    - apple\n    %% keep-sorted end %%\n';
     const input = block(`- Vegetables\n- Fruit\n${inner}`, opts);
@@ -196,12 +197,12 @@ test('nested=yes leaves an inner block to its own options', () => {
 });
 
 test('nested=yes applies order=desc at every level', () => {
-    const opts = ' nested=yes order=desc';
+    const opts = 'nested=yes order=desc';
     assert.equal(sortKeepSortedBlocks(block('- a\n    - y\n    - z\n- b\n', opts)), block('- b\n- a\n    - z\n    - y\n', opts));
 });
 
 test('nested=yes keeps a prose continuation line with its item', () => {
-    const opts = ' nested=yes';
+    const opts = 'nested=yes';
     const input = block('- b\n  about b\n    - z\n    - y\n- a\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('- a\n- b\n  about b\n    - y\n    - z\n', opts));
 });
@@ -213,48 +214,48 @@ test('without nested, sub-items keep their order', () => {
 const table = (rows: string, opts: string) => block(`\n| Name | Color |\n| --- | --- |\n${rows}\n`, opts);
 
 test('column=N sorts a table by the Nth cell', () => {
-    const opts = ' column=2';
+    const opts = 'column=2';
     assert.equal(sortKeepSortedBlocks(table('| Dog | Brown |\n| Cat | Black |\n| Bird | Red |', opts)),
         table('| Cat | Black |\n| Dog | Brown |\n| Bird | Red |', opts));
 });
 
 test('column=Name finds the header, ignoring case and formatting', () => {
-    const opts = ' column=color';
+    const opts = 'column=color';
     const input = block(`\n| Name | **Color** |\n| --- | ---: |\n| Dog | Brown |\n| Cat | Black |\n`, opts);
     assert.equal(sortKeepSortedBlocks(input), block(`\n| Name | **Color** |\n| --- | ---: |\n| Cat | Black |\n| Dog | Brown |\n`, opts));
 });
 
 test('a quoted column name may contain spaces', () => {
-    const opts = ' column="Due date"';
+    const opts = 'column="Due date"';
     const input = block(`| Task | Due date |\n| --- | --- |\n| b | 2026-02-01 |\n| a | 2026-01-01 |\n`, opts);
     assert.equal(sortKeepSortedBlocks(input), block(`| Task | Due date |\n| --- | --- |\n| a | 2026-01-01 |\n| b | 2026-02-01 |\n`, opts));
 });
 
 test('column with case=no folds the cells', () => {
-    const opts = ' column=2 case=no';
+    const opts = 'column=2 case=no';
     assert.equal(sortKeepSortedBlocks(table('| a | beta |\n| b | Alpha |\n| c | Gamma |', opts)),
         table('| b | Alpha |\n| a | beta |\n| c | Gamma |', opts));
 });
 
 test('a header that matches twice picks the first column', () => {
-    const opts = ' column=Name';
+    const opts = 'column=Name';
     const input = block('| Name | Name |\n| --- | --- |\n| b | x |\n| a | y |\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('| Name | Name |\n| --- | --- |\n| a | y |\n| b | x |\n', opts));
 });
 
 test('column respects an explicit skip_lines', () => {
-    const opts = ' column=2 skip_lines=2,-1';
+    const opts = 'column=2 skip_lines=2,-1';
     const input = table('| b | y |\n| a | x |\n| Total | 2 |', opts);
     assert.equal(sortKeepSortedBlocks(input), table('| a | x |\n| b | y |\n| Total | 2 |', opts));
 });
 
 test('an unterminated quote is taken literally and leaves the block as it is', () => {
-    const input = table('| b | x |\n| a | y |', ' column="Due date');
+    const input = table('| b | x |\n| a | y |', 'column="Due date');
     assert.equal(sortKeepSortedBlocks(input), input);
 });
 
 test('an escaped pipe does not split a cell', () => {
-    const opts = ' column=3 numeric=yes order=desc';
+    const opts = 'column=3 numeric=yes order=desc';
     const rows = '| Faucet | [[Ferguson]] | $1,250.00 |\n| Valve | [[Ferguson\\|Ferguson Plumbing]] | $89.50 |\n| Sink | Floor & Decor | |\n| Drain | Home Depot | $212 |';
     const input = block(`\n| Item | Vendor | Price |\n| --- | --- | ---: |\n${rows}\n\n`, opts);
     const sorted = '| Faucet | [[Ferguson]] | $1,250.00 |\n| Drain | Home Depot | $212 |\n| Valve | [[Ferguson\\|Ferguson Plumbing]] | $89.50 |\n| Sink | Floor & Decor | |';
@@ -262,31 +263,31 @@ test('an escaped pipe does not split a cell', () => {
 });
 
 test('numeric=yes orders signed, decimal and percent cells by value', () => {
-    const opts = ' column=2 numeric=yes';
+    const opts = 'column=2 numeric=yes';
     const input = table('| a | 12% |\n| b | -3.5 |\n| c | 1.25 |\n| d | 1.5 |\n| e | v10 |\n| f | v2 |', opts);
     assert.equal(sortKeepSortedBlocks(input), table('| b | -3.5 |\n| c | 1.25 |\n| d | 1.5 |\n| a | 12% |\n| f | v2 |\n| e | v10 |', opts));
 });
 
 test('tied cells are ordered by the full row, whatever order they came in', () => {
-    const opts = ' column=2';
+    const opts = 'column=2';
     const expected = table('| a | x |\n| b | x |\n| c | y |', opts);
     assert.equal(sortKeepSortedBlocks(table('| b | x |\n| c | y |\n| a | x |', opts)), expected);
     assert.equal(sortKeepSortedBlocks(table('| c | y |\n| a | x |\n| b | x |', opts)), expected);
 });
 
 test('empty and missing cells sort last in both directions', () => {
-    const asc = ' column=2';
+    const asc = 'column=2';
     assert.equal(sortKeepSortedBlocks(table('| a | |\n| b |\n| c | x |', asc)), table('| c | x |\n| a | |\n| b |', asc));
-    const desc = ' column=2 order=desc';
+    const desc = 'column=2 order=desc';
     assert.equal(sortKeepSortedBlocks(table('| a | |\n| c | x |\n| d | y |', desc)), table('| d | y |\n| c | x |\n| a | |', desc));
 });
 
 test('a bad column leaves the block as it is', () => {
-    for (const opts of [' column=0', ' column=Weight', ' column=1.5']) {
+    for (const opts of ['column=0', 'column=Weight', 'column=1.5']) {
         const input = table('| b | x |\n| a | y |', opts);
         assert.equal(sortKeepSortedBlocks(input), input);
     }
-    const list = block('- b\n- a\n', ' column=1');
+    const list = block('- b\n- a\n', 'column=1');
     assert.equal(sortKeepSortedBlocks(list), list);
 });
 
