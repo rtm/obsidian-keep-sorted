@@ -211,7 +211,7 @@ test('without nested, sub-items keep their order', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n    - y\n- a\n')), block('- a\n- b\n    - z\n    - y\n'));
 });
 
-const table = (rows: string, opts: string) => block(`\n| Name | Color |\n| --- | --- |\n${rows}\n`, opts);
+const table = (rows: string, opts = '') => block(`\n| Name | Color |\n| --- | --- |\n${rows}\n`, opts);
 
 test('column=N sorts a table by the Nth cell', () => {
     const opts = 'column=2';

@@ -112,8 +112,8 @@ function compareCells(a: string, b: string, numeric: boolean): number {
 }
 
 /** A comparison in the block's order: reversed for order=desc. */
-function directed(cmp: number, options: SortOptions): number {
-    return options.order === 'desc' ? -cmp : cmp;
+function directed(cmp: number, order: SortOptions['order']): number {
+    return order === 'desc' ? -cmp : cmp;
 }
 
 /** The text a line sorts by: what the reader sees, lowercased when the case
@@ -259,7 +259,7 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
     }));
     keyed.sort((a, b) => {
         if ((a.cell === '') !== (b.cell === '')) return a.cell === '' ? 1 : -1;
-        return directed(compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric), options);
+        return directed(compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric), options.order);
     });
     return keyed.map(k => k.row);
 }
@@ -271,7 +271,7 @@ function sortItems(lines: string[], options: SortOptions, keepStart: boolean): s
     // Each key is computed once, not on every comparison.
     const keyed = splitIntoGroups(lines, options.group)
         .map(group => ({ group: sortUnder(group, options), key: extractSortKey(group[0], options.case) }));
-    keyed.sort((a, b) => directed(compareKeys(a.key, b.key, options.numeric), options));
+    keyed.sort((a, b) => directed(compareKeys(a.key, b.key, options.numeric), options.order));
 
     const sorted = keyed.flatMap(k => k.group);
     const start = lines[0]?.match(ORDERED_PREFIX)?.[2];
