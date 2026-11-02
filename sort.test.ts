@@ -113,6 +113,25 @@ test('the item that moves to the top takes the number that led the list', () => 
     assert.equal(sortKeepSortedBlocks(block('1. c\n2. a\n3. b\n')), block('1. a\n3. b\n1. c\n'));
 });
 
+test('indented lines move with the item above them', () => {
+    assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n- a\n    - y\n')), block('- a\n    - y\n- b\n    - z\n'));
+});
+
+test('group=no sorts every line on its own', () => {
+    const opts = ' group=no';
+    assert.equal(sortKeepSortedBlocks(block('- b\n    - z\n- a\n    - y\n', opts)), block('- a\n- b\n    - y\n    - z\n', opts));
+});
+
+test('group=no sorts a prose continuation line as an item of its own', () => {
+    const opts = ' group=no';
+    assert.equal(sortKeepSortedBlocks(block('- b\n  more about b\n- a\n', opts)), block('- a\n- b\n  more about b\n', opts));
+});
+
+test('with group=no a blank line stays with the line above it', () => {
+    const opts = ' group=no';
+    assert.equal(sortKeepSortedBlocks(block('- b\n\n- a\n', opts)), block('- a\n- b\n\n', opts));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
