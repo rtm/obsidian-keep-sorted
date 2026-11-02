@@ -68,32 +68,6 @@ To sort every level of an outline with one pair of markers, use `nested=yes` ins
 %% keep-sorted end %%
 ```
 
-A block can sit inside another block. The inner block is sorted on its own, and, indented under a list item, it moves with that item when the outer block is sorted:
-
-```
-%% keep-sorted start %%
-- Vegetables
-- Fruit
-    %% keep-sorted start %%
-    - pear
-    - apple
-    %% keep-sorted end %%
-%% keep-sorted end %%
-```
-
-To sort every level of an outline with one pair of markers, use `nested=yes` instead:
-
-```
-%% keep-sorted start nested=yes %%
-- Vegetables
-    - zucchini
-    - carrot
-- Fruit
-    - pear
-    - apple
-%% keep-sorted end %%
-```
-
 ## Options
 
 Options can be added to the start marker:
