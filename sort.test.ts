@@ -105,6 +105,14 @@ test('a held first item is not renumbered away', () => {
     assert.equal(sortKeepSortedBlocks(block('1. intro\n3. c\n2. b\n', opts)), block('1. intro\n2. b\n3. c\n', opts));
 });
 
+test('an ordered list keeps its starting number; the other numbers travel with their items', () => {
+    assert.equal(sortKeepSortedBlocks(block('100. c\n101. a\n102. b\n')), block('100. a\n102. b\n100. c\n'));
+});
+
+test('the item that moves to the top takes the number that led the list', () => {
+    assert.equal(sortKeepSortedBlocks(block('1. c\n2. a\n3. b\n')), block('1. a\n3. b\n1. c\n'));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
