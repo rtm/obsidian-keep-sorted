@@ -1,15 +1,18 @@
+/** An option written yes or no. */
+type Flag = 'yes' | 'no';
+
 // Options follow google/keep-sorted (https://github.com/google/keep-sorted):
 // the same names, values and defaults, so a block behaves the same in both.
 interface SortOptions {
-    case: 'yes' | 'no';
+    case: Flag;
     order: 'asc' | 'desc';
     numeric: boolean;
     skipLines: SkipLines;
     /** Whether indented continuation lines move with the item above them. */
-    group: 'yes' | 'no';
+    group: Flag;
     /** Whether the items under each item are sorted too, at every level. Not
      *  in google/keep-sorted, which relies on nested blocks instead. */
-    nested: 'yes' | 'no';
+    nested: Flag;
     /** The table column to sort by. Not in google/keep-sorted, which has no
      *  table support. */
     column?: Column;
@@ -29,12 +32,12 @@ function parseOptions(str: string): SortOptions {
         // An unterminated quote is taken literally, so the warning shows what was written.
         const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
         const val = quoted ? raw.slice(1, -1) : raw;
-        if (key === 'case') opts.case = val as 'yes' | 'no';
+        if (key === 'case') opts.case = val as Flag;
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
-        else if (key === 'group') opts.group = val as 'yes' | 'no';
-        else if (key === 'nested') opts.nested = val as 'yes' | 'no';
+        else if (key === 'group') opts.group = val as Flag;
+        else if (key === 'nested') opts.nested = val as Flag;
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
@@ -108,7 +111,14 @@ function compareCells(a: string, b: string, numeric: boolean): number {
     return compareKeys(a, b, numeric);
 }
 
-function extractSortKey(line: string, options: SortOptions): string {
+/** A comparison in the block's order: reversed for order=desc. */
+function directed(cmp: number, options: SortOptions): number {
+    return options.order === 'desc' ? -cmp : cmp;
+}
+
+/** The text a line sorts by: what the reader sees, lowercased when the case
+ *  option is no. */
+function extractSortKey(line: string, keepCase: Flag): string {
     let s = line;
     // Strip list prefix: "- ", "* ", "+ ", or "N. "
     s = s.replace(/^\s*(?:[-*+]|\d+\.)\s+/, '');
@@ -118,7 +128,7 @@ function extractSortKey(line: string, options: SortOptions): string {
     s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
     // Markdown formatting: **, __, ~~, *, _, `
     s = s.replace(/\*\*|__|~~|[*_`]/g, '');
-    if (options.case !== 'yes') s = s.toLowerCase();
+    if (keepCase !== 'yes') s = s.toLowerCase();
     return s.trim();
 }
 
@@ -146,11 +156,11 @@ function splitCells(row: string): string[] {
 /** The 0-based index of the column, or the reason it was not found. A name
  *  matches a header after formatting is stripped, ignoring case; the first
  *  match wins. */
-function findColumn(column: Column, header: string, options: SortOptions): { index: number } | { error: string } {
+function findColumn(column: Column, header: string): { index: number } | { error: string } {
     if ('position' in column) {
         return column.position >= 1 ? { index: column.position - 1 } : { error: `column=${column.position} is not a position` };
     }
-    const fold = (s: string) => extractSortKey(s, { ...options, case: 'no' });
+    const fold = (s: string) => extractSortKey(s, 'no');
     const index = splitCells(header).map(fold).indexOf(fold(column.name));
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
 }
@@ -178,7 +188,7 @@ function trimBlankEdges(lines: string[]): { leading: string[]; content: string[]
  *  with the line above it rather than sorting as an empty item, and a
  *  nested block, markers and all, stays with the item before it whatever
  *  its indentation. */
-function splitIntoGroups(lines: string[], group: 'yes' | 'no'): string[][] {
+function splitIntoGroups(lines: string[], group: Flag): string[][] {
     const baseIndent = Math.min(...lines.filter(l => !isBlank(l)).map(indentOf));
     const groups: string[][] = [];
     let depth = 0;
@@ -222,7 +232,7 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     let sorted: string[];
     if (options.column) {
         // A bad column must never scramble the table, so the block is left as it is.
-        const column = isTable ? findColumn(options.column, content[0], options) : { error: 'column= needs a table' };
+        const column = isTable ? findColumn(options.column, content[0]) : { error: 'column= needs a table' };
         if ('error' in column) {
             // The first line tells the blocks apart, so each bad block warns.
             warnOnce(`${column.error}; the block starting "${content[0] ?? ''}" was left unsorted`);
@@ -244,13 +254,12 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
 function sortRows(rows: string[], options: SortOptions, column: number): string[] {
     const keyed = rows.map(row => ({
         row,
-        cell: extractSortKey(splitCells(row)[column] ?? '', options),
-        full: extractSortKey(row, options),
+        cell: extractSortKey(splitCells(row)[column] ?? '', options.case),
+        full: extractSortKey(row, options.case),
     }));
     keyed.sort((a, b) => {
         if ((a.cell === '') !== (b.cell === '')) return a.cell === '' ? 1 : -1;
-        const cmp = compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric);
-        return options.order === 'desc' ? -cmp : cmp;
+        return directed(compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric), options);
     });
     return keyed.map(k => k.row);
 }
@@ -261,11 +270,8 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
 function sortItems(lines: string[], options: SortOptions, keepStart: boolean): string[] {
     // Each key is computed once, not on every comparison.
     const keyed = splitIntoGroups(lines, options.group)
-        .map(group => ({ group: sortUnder(group, options), key: extractSortKey(group[0], options) }));
-    keyed.sort((a, b) => {
-        const cmp = compareKeys(a.key, b.key, options.numeric);
-        return options.order === 'desc' ? -cmp : cmp;
-    });
+        .map(group => ({ group: sortUnder(group, options), key: extractSortKey(group[0], options.case) }));
+    keyed.sort((a, b) => directed(compareKeys(a.key, b.key, options.numeric), options));
 
     const sorted = keyed.flatMap(k => k.group);
     const start = lines[0]?.match(ORDERED_PREFIX)?.[2];
