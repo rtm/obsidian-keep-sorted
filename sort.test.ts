@@ -132,6 +132,48 @@ test('with group=no a blank line stays with the line above it', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n\n- a\n', opts)), block('- a\n- b\n\n', opts));
 });
 
+test('a block nested inside another sorts on its own and moves with its item', () => {
+    const inner = '    %% keep-sorted start %%\n    - pear\n    - apple\n    %% keep-sorted end %%\n';
+    const innerSorted = '    %% keep-sorted start %%\n    - apple\n    - pear\n    %% keep-sorted end %%\n';
+    const input = block(`- Zucchini\n- Fruit\n${inner}- Carrot\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Carrot\n- Fruit\n${innerSorted}- Zucchini\n`));
+});
+
+test('an inner block at the same indent as the items stays with the item before it', () => {
+    const inner = '%% keep-sorted start %%\n- pear\n- apple\n%% keep-sorted end %%\n';
+    const innerSorted = '%% keep-sorted start %%\n- apple\n- pear\n%% keep-sorted end %%\n';
+    const input = block(`- Zucchini\n${inner}- Carrot\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Carrot\n- Zucchini\n${innerSorted}`));
+});
+
+test('blocks nest three deep', () => {
+    const level3 = '        %% keep-sorted start %%\n        - z\n        - y\n        %% keep-sorted end %%\n';
+    const level3Sorted = '        %% keep-sorted start %%\n        - y\n        - z\n        %% keep-sorted end %%\n';
+    const input = block(`- b\n- a\n    %% keep-sorted start %%\n    - d\n    - c\n${level3}    %% keep-sorted end %%\n`);
+    const expected = block(`- a\n    %% keep-sorted start %%\n    - c\n${level3Sorted}    - d\n    %% keep-sorted end %%\n- b\n`);
+    assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
+test('a marker mentioned inside an item is not a marker', () => {
+    const input = block('- b: `%% keep-sorted start %%`\n- a: `%% keep-sorted end %%`\n');
+    assert.equal(sortKeepSortedBlocks(input), block('- a: `%% keep-sorted end %%`\n- b: `%% keep-sorted start %%`\n'));
+});
+
+test('a file with CRLF line endings is sorted and keeps them', () => {
+    const input = '%% keep-sorted start %%\r\n- b\r\n- a\r\n%% keep-sorted end %%\r\n';
+    assert.equal(sortKeepSortedBlocks(input), '%% keep-sorted start %%\r\n- a\r\n- b\r\n%% keep-sorted end %%\r\n');
+});
+
+test('two blocks in one file are sorted separately', () => {
+    const input = `${block('- b\n- a\n')}\ntext\n${block('- d\n- c\n', ' order=desc')}\n`;
+    assert.equal(sortKeepSortedBlocks(input), `${block('- a\n- b\n')}\ntext\n${block('- d\n- c\n', ' order=desc')}\n`);
+});
+
+test('a start marker without an end marker leaves the text alone', () => {
+    const input = '%% keep-sorted start %%\n- b\n- a\n';
+    assert.equal(sortKeepSortedBlocks(input), input);
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
