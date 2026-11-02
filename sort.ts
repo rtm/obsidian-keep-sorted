@@ -10,21 +10,33 @@ interface SortOptions {
     /** Whether the items under each item are sorted too, at every level. Not
      *  in google/keep-sorted, which relies on nested blocks instead. */
     nested: 'yes' | 'no';
+    /** The table column to sort by. Not in google/keep-sorted, which has no
+     *  table support. */
+    column?: Column;
 }
 
 /** Lines held in place at the top and bottom of the block. head is absent
  *  unless skip_lines gives it, which lets table detection decide. */
 type SkipLines = { head?: number; tail: number };
 
+/** A column named by its 1-based position or by its header text. */
+type Column = { position: number } | { name: string };
+
 function parseOptions(str: string): SortOptions {
     const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no' };
-    for (const [, key, val] of str.matchAll(/(\w+)=(\S+)/g)) {
+    // A value with spaces, such as a header name, is written in double quotes.
+    for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
+        // An unterminated quote is taken literally, so the warning shows what was written.
+        const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
+        const val = quoted ? raw.slice(1, -1) : raw;
         if (key === 'case') opts.case = val as 'yes' | 'no';
         else if (key === 'order') opts.order = val as 'asc' | 'desc';
         else if (key === 'numeric') opts.numeric = val === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
         else if (key === 'group') opts.group = val as 'yes' | 'no';
         else if (key === 'nested') opts.nested = val as 'yes' | 'no';
+        // A header that is literally a number is quoted to tell it from a position.
+        else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
     return opts;
 }
@@ -78,6 +90,24 @@ function compareDigits(x: string, y: string): number {
     return p.length !== q.length ? p.length - q.length : ordinal(p, q);
 }
 
+/** A number as a table cell writes it: an optional sign and currency symbol,
+ *  digits with optional thousands commas, an optional decimal part, an
+ *  optional trailing percent sign. Anything else is undefined. */
+function parseNumber(s: string): number | undefined {
+    if (!/^[-+]?[$€£¥]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?$/.test(s)) return undefined;
+    return parseFloat(s.replace(/[$€£¥,%]/g, ''));
+}
+
+/** Compares two cells. With numeric, cells that are both numbers compare by
+ *  value, so $89.50 sorts before $212; otherwise as keys do. */
+function compareCells(a: string, b: string, numeric: boolean): number {
+    if (numeric) {
+        const [x, y] = [parseNumber(a), parseNumber(b)];
+        if (x !== undefined && y !== undefined) return x - y;
+    }
+    return compareKeys(a, b, numeric);
+}
+
 function extractSortKey(line: string, options: SortOptions): string {
     let s = line;
     // Strip list prefix: "- ", "* ", "+ ", or "N. "
@@ -104,8 +134,34 @@ const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
 /** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
 function isSeparatorRow(line: string): boolean {
     if (!line.includes('|') && !/^\s*:?-{3,}:?\s*$/.test(line)) return false;
-    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
-    return cells.every(c => /^\s*:?-+:?\s*$/.test(c));
+    return splitCells(line).every(c => /^:?-+:?$/.test(c));
+}
+
+/** A table row's cells, trimmed. Only an unescaped pipe divides cells: an
+ *  aliased wikilink in a table is written [[Note\|Alias]]. */
+function splitCells(row: string): string[] {
+    return row.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim());
+}
+
+/** The 0-based index of the column, or the reason it was not found. A name
+ *  matches a header after formatting is stripped, ignoring case; the first
+ *  match wins. */
+function findColumn(column: Column, header: string, options: SortOptions): { index: number } | { error: string } {
+    if ('position' in column) {
+        return column.position >= 1 ? { index: column.position - 1 } : { error: `column=${column.position} is not a position` };
+    }
+    const fold = (s: string) => extractSortKey(s, { ...options, case: 'no' });
+    const index = splitCells(header).map(fold).indexOf(fold(column.name));
+    return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
+}
+
+const warned = new Set<string>();
+/** Warns once per message. The sorter runs after every pause in typing, so a
+ *  bad option would otherwise fill the console. */
+function warnOnce(message: string): void {
+    if (warned.has(message)) return;
+    warned.add(message);
+    console.warn(`Keep Sorted: ${message}`);
 }
 
 /** Splits off the blank lines at either end, which stay where they are. */
@@ -162,10 +218,41 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
 
     // Blank lines between the held lines and the rest stay in place too.
     const region = trimBlankEdges(content.slice(head, end));
-    // Held lines above start the list, so its numbering is left alone.
-    const sorted = sortItems(region.content, options, top.length === 0);
+
+    let sorted: string[];
+    if (options.column) {
+        // A bad column must never scramble the table, so the block is left as it is.
+        const column = isTable ? findColumn(options.column, content[0], options) : { error: 'column= needs a table' };
+        if ('error' in column) {
+            // The first line tells the blocks apart, so each bad block warns.
+            warnOnce(`${column.error}; the block starting "${content[0] ?? ''}" was left unsorted`);
+            return lines;
+        }
+        sorted = sortRows(region.content, options, column.index);
+    } else {
+        // Held lines above start the list, so its numbering is left alone.
+        sorted = sortItems(region.content, options, top.length === 0);
+    }
 
     return [...leading, ...top, ...region.leading, ...sorted, ...region.trailing, ...bottom, ...trailing];
+}
+
+/** Sorts table rows by one column. Rows whose cells tie are ordered by their
+ *  full text, so the result depends only on the table's content. A missing or
+ *  empty cell sorts last whichever way the table is ordered, as in a
+ *  spreadsheet, so unfilled rows collect at the bottom. */
+function sortRows(rows: string[], options: SortOptions, column: number): string[] {
+    const keyed = rows.map(row => ({
+        row,
+        cell: extractSortKey(splitCells(row)[column] ?? '', options),
+        full: extractSortKey(row, options),
+    }));
+    keyed.sort((a, b) => {
+        if ((a.cell === '') !== (b.cell === '')) return a.cell === '' ? 1 : -1;
+        const cmp = compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric);
+        return options.order === 'desc' ? -cmp : cmp;
+    });
+    return keyed.map(k => k.row);
 }
 
 /** Sorts a list's items, and with nested=yes the items under each of them.
