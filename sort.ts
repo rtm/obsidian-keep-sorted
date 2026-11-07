@@ -129,7 +129,18 @@ function extractSortKey(line: string, keepCase: Flag): string {
     // Markdown formatting: **, __, ~~, *, _, `
     s = s.replace(/\*\*|__|~~|[*_`]/g, '');
     if (keepCase !== 'yes') s = s.toLowerCase();
-    return s.trim();
+    return ignoreLeadingPunctuation(s.trim());
+}
+
+/** Punctuation in front of a name is not part of it: “Paper” and (Paper) sort
+ *  as Paper, not ahead of or after every letter. Three things keep theirs: a
+ *  number its sign, a task its checkbox, so checked and unchecked tasks stay
+ *  apart, and a key of nothing but punctuation, so a dash placeholder still
+ *  sorts as a dash rather than as an empty cell. */
+function ignoreLeadingPunctuation(s: string): string {
+    if (parseNumber(s) !== undefined || /^\[[ x]\]/i.test(s)) return s;
+    const name = s.replace(/^[\s\p{P}]+/u, '');
+    return name === '' ? s : name;
 }
 
 const indentOf = (s: string) => s.search(/\S/);

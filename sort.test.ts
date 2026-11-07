@@ -10,6 +10,18 @@ test('sorts a plain list', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n- a\n')), block('- a\n- b\n'));
 });
 
+test('leading punctuation does not decide where an item sorts', () => {
+    const input = block('* Quarto\n* “[Paper](https://example.com)” is unmaintained\n* \'Tis a note\n* Albus\n* "Ode" in quotes\n* (Delta) in brackets\n* — Echo\n* ¡Bravo!\n', ' case=no');
+    const expected = block('* Albus\n* ¡Bravo!\n* (Delta) in brackets\n* — Echo\n* "Ode" in quotes\n* “[Paper](https://example.com)” is unmaintained\n* Quarto\n* \'Tis a note\n', ' case=no');
+    assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
+test('a negative number keeps its sign when a numeric column is sorted', () => {
+    const input = block('| Item | Amount |\n| --- | --- |\n| a | 3 |\n| b | -5 |\n| c | -$2 |\n', ' column=Amount numeric=yes');
+    const expected = block('| Item | Amount |\n| --- | --- |\n| b | -5 |\n| c | -$2 |\n| a | 3 |\n', ' column=Amount numeric=yes');
+    assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
 test('a trailing blank line does not travel with the last item', () => {
     assert.equal(sortKeepSortedBlocks(block('- a\n- c\n- b\n\n')), block('- a\n- b\n- c\n\n'));
 });
