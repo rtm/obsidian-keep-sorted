@@ -16,6 +16,23 @@ test('leading punctuation does not decide where an item sorts', () => {
     assert.equal(sortKeepSortedBlocks(input), expected);
 });
 
+test('checked and unchecked tasks stay apart', () => {
+    const input = block('- [x] apple\n- [ ] zebra\n- [ ] mango\n- [x] banana\n');
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n- [x] banana\n'));
+});
+
+test('a cell of only punctuation still sorts as that punctuation', () => {
+    const opts = ' column=Note order=desc';
+    const input = block('| Item | Note |\n| --- | --- |\n| a | z |\n| b | — |\n| c | y |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| Item | Note |\n| --- | --- |\n| b | — |\n| a | z |\n| c | y |\n', opts));
+});
+
+test('column headers made of punctuation are told apart', () => {
+    const opts = ' column=%';
+    const input = block('| # | % |\n| --- | --- |\n| 1 | 9 |\n| 2 | 3 |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| # | % |\n| --- | --- |\n| 2 | 3 |\n| 1 | 9 |\n', opts));
+});
+
 test('a negative number keeps its sign when a numeric column is sorted', () => {
     const input = block('| Item | Amount |\n| --- | --- |\n| a | 3 |\n| b | -5 |\n| c | -$2 |\n', ' column=Amount numeric=yes');
     const expected = block('| Item | Amount |\n| --- | --- |\n| b | -5 |\n| c | -$2 |\n| a | 3 |\n', ' column=Amount numeric=yes');
