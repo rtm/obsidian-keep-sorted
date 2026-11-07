@@ -86,7 +86,7 @@ Options can be added to the start marker:
 | `column` | a position such as `2`, or a header such as `Color` or `"Due date"` | none | Sort a table by one column instead of by each row's full text. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested` and `column`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so punctuation and accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested` and `column`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation inside a name, sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 
@@ -96,6 +96,7 @@ Sort keys are derived by stripping the following from each line:
 - Wikilinks: `[[file|display]]` sorts by display text; `[[file]]` sorts by file
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
+- Punctuation at the front of what is left: `“Paper”` and `(Paper)` both sort as `Paper`. A number keeps its sign, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is.
 
 Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
 
