@@ -169,7 +169,10 @@ function splitCells(row: string): string[] {
  *  match wins. */
 function findColumn(column: Column, header: string): { index: number } | { error: string } {
     if ('position' in column) {
-        return column.position >= 1 ? { index: column.position - 1 } : { error: `column=${column.position} is not a position` };
+        const count = splitCells(header).length;
+        if (column.position < 1) return { error: `column=${column.position} is not a position` };
+        if (column.position > count) return { error: `column=${column.position} is past the table's last column, ${count}` };
+        return { index: column.position - 1 };
     }
     const fold = (s: string) => extractSortKey(s, 'no');
     const index = splitCells(header).map(fold).indexOf(fold(column.name));

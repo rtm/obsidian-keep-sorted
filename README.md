@@ -40,7 +40,7 @@ Rows are sorted by their full text, which effectively sorts by the first column.
 %% keep-sorted start column="Due date" numeric=yes order=desc %%
 ```
 
-Cells are compared the way list items are, by the text you see; an escaped pipe (`\|`, as in an aliased wikilink) stays inside its cell. With `numeric=yes`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value. Rows whose cells tie are ordered by their full text, and rows with an empty cell in that column go last whichever way the table is sorted. A `column` that names no column, or is given on a block that is not a table, leaves the block unsorted and logs a warning in the developer console.
+Cells are compared the way list items are, by the text you see; an escaped pipe (`\|`, as in an aliased wikilink) stays inside its cell. With `numeric=yes`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value. Rows whose cells tie are ordered by their full text, and rows with an empty cell in that column go last whichever way the table is sorted. A `column` that names no column, including a position past the last column, or is given on a block that is not a table, leaves the block unsorted and logs a warning in the developer console.
 
 A block can sit inside another block. The inner block is sorted on its own, and, indented under a list item, it moves with that item when the outer block is sorted:
 

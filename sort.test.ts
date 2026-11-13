@@ -312,7 +312,7 @@ test('empty and missing cells sort last in both directions', () => {
 });
 
 test('a bad column leaves the block as it is', () => {
-    for (const opts of ['column=0', 'column=Weight', 'column=1.5']) {
+    for (const opts of ['column=0', 'column=3', 'column=Weight', 'column=1.5']) {
         const input = table('| b | x |\n| a | y |', opts);
         assert.equal(sortKeepSortedBlocks(input), input);
     }
