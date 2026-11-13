@@ -320,6 +320,55 @@ test('a bad column leaves the block as it is', () => {
     assert.equal(sortKeepSortedBlocks(list), list);
 });
 
+test('key=task-status puts open tasks first, done tasks last and other statuses between by character', () => {
+    const opts = 'key=task-status';
+    const input = block('- [x] done\n- [/] in progress\n- [ ] open\n- [X] also done\n- [-] cancelled\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] open\n- [-] cancelled\n- [/] in progress\n- [X] also done\n- [x] done\n', opts));
+});
+
+test('key=task-status falls back to the text within a status, without the checkbox', () => {
+    const opts = 'key=task-status';
+    const input = block('- [x] banana\n- [ ] zebra\n- [-] b\n- [ ] mango\n- [x] apple\n- [-] a\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [-] a\n- [-] b\n- [x] apple\n- [x] banana\n', opts));
+});
+
+test('key=task-status respects case and numeric when comparing the text', () => {
+    const opts = 'key=task-status case=no numeric=yes';
+    const input = block('- [ ] Task 10\n- [ ] task 9\n- [x] b\n- [x] A\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] task 9\n- [ ] Task 10\n- [x] A\n- [x] b\n', opts));
+});
+
+test('key=task-status with order=desc reverses the statuses and the text', () => {
+    const opts = 'key=task-status order=desc';
+    const input = block('- [ ] a\n- [x] a\n- [-] a\n- [ ] b\n- [x] b\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [x] b\n- [x] a\n- [-] a\n- [ ] b\n- [ ] a\n', opts));
+});
+
+test('key=task-status sorts lines without a checkbox after the other statuses and before done tasks', () => {
+    const opts = 'key=task-status';
+    const input = block('- [x] done\n- plain b\n- [ ] open\n- plain a\n- [-] cancelled\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] open\n- [-] cancelled\n- plain a\n- plain b\n- [x] done\n', opts));
+});
+
+test('key=text is the default and leaves the current ordering alone', () => {
+    for (const opts of ['', 'key=text']) {
+        const input = block('- [x] apple\n- [ ] zebra\n- [-] b\n- [ ] mango\n', opts);
+        assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n- [-] b\n', opts));
+    }
+});
+
+test('key=task-status composes with skip_lines and nested=yes', () => {
+    const opts = 'key=task-status skip_lines=1 nested=yes';
+    const input = block('Heading\n- [x] b\n    - [x] y\n    - [ ] z\n- [ ] a\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('Heading\n- [ ] a\n- [x] b\n    - [ ] z\n    - [x] y\n', opts));
+});
+
+test('key=task-status sorts a table by the checkboxes in a column', () => {
+    const opts = 'column=Done key=task-status';
+    const input = block('| Task | Done |\n| --- | --- |\n| b | [x] |\n| c | |\n| a | [ ] |\n| d | [x] |\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('| Task | Done |\n| --- | --- |\n| a | [ ] |\n| b | [x] |\n| d | [x] |\n| c | |\n', opts));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });
