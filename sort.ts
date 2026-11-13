@@ -1,6 +1,10 @@
 /** An option written yes or no. */
 type Flag = 'yes' | 'no';
 
+/** What an item sorts by: its text, or with task-status its checkbox first
+ *  and its text second. */
+type SortKey = 'text' | 'task-status';
+
 // Options follow google/keep-sorted (https://github.com/google/keep-sorted):
 // the same names, values and defaults, so a block behaves the same in both.
 interface SortOptions {
@@ -16,6 +20,8 @@ interface SortOptions {
     /** The table column to sort by. Not in google/keep-sorted, which has no
      *  table support. */
     column?: Column;
+    /** What an item sorts by. Not in google/keep-sorted, which has no tasks. */
+    key: SortKey;
 }
 
 /** Lines held in place at the top and bottom of the block. head is absent
@@ -26,7 +32,7 @@ type SkipLines = { head?: number; tail: number };
 type Column = { position: number } | { name: string };
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no' };
+    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text' };
     // A value with spaces, such as a header name, is written in double quotes.
     for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
         // An unterminated quote is taken literally, so the warning shows what was written.
@@ -38,10 +44,19 @@ function parseOptions(str: string): SortOptions {
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
         else if (key === 'group') opts.group = val as Flag;
         else if (key === 'nested') opts.nested = val as Flag;
+        else if (key === 'key') opts.key = parseKey(val);
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
     return opts;
+}
+
+/** A value that is not a sort key warns and sorts by text, so a typo does
+ *  not pass for the feature doing nothing. */
+function parseKey(val: string): SortKey {
+    if (val === 'text' || val === 'task-status') return val;
+    warnOnce(`key=${val} is not a sort key; the block is sorted by text`);
+    return 'text';
 }
 
 /** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
@@ -120,8 +135,7 @@ function directed(cmp: number, order: SortOptions['order']): number {
  *  option is no. */
 function extractSortKey(line: string, keepCase: Flag): string {
     let s = line;
-    // Strip list prefix: "- ", "* ", "+ ", or "N. "
-    s = s.replace(/^\s*(?:[-*+]|\d+\.)\s+/, '');
+    s = s.replace(LIST_PREFIX, '');
     // Wikilink: [[file|display]] → display, [[file]] → file
     s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_: string, file: string, display: string | undefined) => display ?? file);
     // Markdown link: [text](url) → text
@@ -141,6 +155,41 @@ function ignoreLeadingPunctuation(s: string): string {
     if (parseNumber(s) !== undefined || /^\[[ x]\]/i.test(s)) return s;
     const name = s.replace(/^[\s\p{P}]+/u, '');
     return name === '' ? s : name;
+}
+
+/** A list item's prefix: indent, "-", "*", "+" or "N.", and the space after. */
+const LIST_PREFIX_SOURCE = String.raw`\s*(?:[-*+]|\d+\.)\s+`;
+const LIST_PREFIX = new RegExp(`^${LIST_PREFIX_SOURCE}`);
+/** A task's checkbox, after the list prefix if there is one, with the
+ *  character inside it and the space after it. */
+const CHECKBOX = new RegExp(`^(${LIST_PREFIX_SOURCE})?\\[(.)\\](?:\\s+|$)`, 'u');
+
+/** What an item or cell sorts by: the rank of its status, then its text. */
+interface ItemKey { rank: string; text: string }
+
+/** The ranks statuses sort in, compared by ordinal: open tasks first, done
+ *  tasks last, every other status between them by its character, and items
+ *  with no checkbox after those, so a mixed list still sorts. Without
+ *  key=task-status every item has no checkbox, so the text decides. */
+const OPEN = '0', NO_CHECKBOX = '2', DONE = '3';
+function statusRank(status: string | undefined): string {
+    if (status === undefined) return NO_CHECKBOX;
+    if (status === ' ') return OPEN;
+    if (status.toLowerCase() === 'x') return DONE;
+    return `1${status}`;
+}
+
+/** The key of an item or cell. With key=task-status the checkbox is split
+ *  off as the status and the text is what follows it; otherwise the text is
+ *  the whole item. */
+function itemKey(s: string, options: SortOptions): ItemKey {
+    const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
+    return { rank: statusRank(box?.[2]), text: extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case) };
+}
+
+/** Compares two items: by status, then by text. */
+function compareItems(a: ItemKey, b: ItemKey, compareText: (x: string, y: string) => number): number {
+    return ordinal(a.rank, b.rank) || compareText(a.text, b.text);
 }
 
 const indentOf = (s: string) => s.search(/\S/);
@@ -169,7 +218,10 @@ function splitCells(row: string): string[] {
  *  match wins. */
 function findColumn(column: Column, header: string): { index: number } | { error: string } {
     if ('position' in column) {
-        return column.position >= 1 ? { index: column.position - 1 } : { error: `column=${column.position} is not a position` };
+        const count = splitCells(header).length;
+        if (column.position < 1) return { error: `column=${column.position} is not a position` };
+        if (column.position > count) return { error: `column=${column.position} is past the table's last column, ${count}` };
+        return { index: column.position - 1 };
     }
     const fold = (s: string) => extractSortKey(s, 'no');
     const index = splitCells(header).map(fold).indexOf(fold(column.name));
@@ -265,12 +317,15 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
 function sortRows(rows: string[], options: SortOptions, column: number): string[] {
     const keyed = rows.map(row => ({
         row,
-        cell: extractSortKey(splitCells(row)[column] ?? '', options.case),
+        cell: itemKey(splitCells(row)[column] ?? '', options),
         full: extractSortKey(row, options.case),
     }));
+    // A cell of only a checkbox is not empty: its status is its content.
+    const isEmpty = (k: ItemKey) => k.rank === NO_CHECKBOX && k.text === '';
     keyed.sort((a, b) => {
-        if ((a.cell === '') !== (b.cell === '')) return a.cell === '' ? 1 : -1;
-        return directed(compareCells(a.cell, b.cell, options.numeric) || compareKeys(a.full, b.full, options.numeric), options.order);
+        if (isEmpty(a.cell) !== isEmpty(b.cell)) return isEmpty(a.cell) ? 1 : -1;
+        const byCell = compareItems(a.cell, b.cell, (x, y) => compareCells(x, y, options.numeric));
+        return directed(byCell || compareKeys(a.full, b.full, options.numeric), options.order);
     });
     return keyed.map(k => k.row);
 }
@@ -281,8 +336,8 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
 function sortItems(lines: string[], options: SortOptions, keepStart: boolean): string[] {
     // Each key is computed once, not on every comparison.
     const keyed = splitIntoGroups(lines, options.group)
-        .map(group => ({ group: sortUnder(group, options), key: extractSortKey(group[0], options.case) }));
-    keyed.sort((a, b) => directed(compareKeys(a.key, b.key, options.numeric), options.order));
+        .map(group => ({ group: sortUnder(group, options), key: itemKey(group[0], options) }));
+    keyed.sort((a, b) => directed(compareItems(a.key, b.key, (x, y) => compareKeys(x, y, options.numeric)), options.order));
 
     const sorted = keyed.flatMap(k => k.group);
     const start = lines[0]?.match(ORDERED_PREFIX)?.[2];
