@@ -369,6 +369,19 @@ test('key=task-status sorts a table by the checkboxes in a column', () => {
     assert.equal(sortKeepSortedBlocks(input), block('| Task | Done |\n| --- | --- |\n| a | [ ] |\n| b | [x] |\n| d | [x] |\n| c | |\n', opts));
 });
 
+test('key=task-status ranks an emoji status by its character like any other', () => {
+    const opts = 'key=task-status';
+    // U+1F525 is two UTF-16 units, so it is a checkbox only when the pattern reads code points.
+    const input = block('- [x] done\n- [\u{1F525}] hot\n- [ ] open\n- [-] cancelled\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] open\n- [-] cancelled\n- [\u{1F525}] hot\n- [x] done\n', opts));
+});
+
+test('a key that is not a sort key sorts by text', () => {
+    const opts = 'key=status';
+    const input = block('- [x] apple\n- [ ] zebra\n- [ ] mango\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n', opts));
+});
+
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
 });

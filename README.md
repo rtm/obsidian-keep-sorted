@@ -29,7 +29,7 @@ A task list can be sorted by its checkboxes instead of by its text, with `key=ta
 %% keep-sorted end %%
 ```
 
-Open tasks (`[ ]`) come first and done tasks (`[x]` or `[X]`) last. Any other status, such as `[-]` or `[/]`, sorts between them by its character, and lines with no checkbox go after those, just before the done tasks. Within a status, items sort by the text after the checkbox, as a plain list would, so `case`, `numeric` and the rest apply there, and `order=desc` reverses the whole order, statuses included.
+Open tasks (`[ ]`) come first and done tasks (`[x]` or `[X]`) last. Any other status, such as `[-]` or `[/]`, sorts between them by its character, and lines with no checkbox go after those, just before the done tasks. Within a status, items sort by the text after the checkbox, as a plain list would, so `case`, `numeric` and the rest apply there, and `order=desc` reverses the whole order, statuses included. A `key` that is neither `text` nor `task-status` sorts by text and logs a warning in the developer console.
 
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 

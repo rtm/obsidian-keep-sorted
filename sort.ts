@@ -44,11 +44,19 @@ function parseOptions(str: string): SortOptions {
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
         else if (key === 'group') opts.group = val as Flag;
         else if (key === 'nested') opts.nested = val as Flag;
-        else if (key === 'key') opts.key = val as SortKey;
+        else if (key === 'key') opts.key = parseKey(val);
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
     return opts;
+}
+
+/** A value that is not a sort key warns and sorts by text, so a typo does
+ *  not pass for the feature doing nothing. */
+function parseKey(val: string): SortKey {
+    if (val === 'text' || val === 'task-status') return val;
+    warnOnce(`key=${val} is not a sort key; the block is sorted by text`);
+    return 'text';
 }
 
 /** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
@@ -154,7 +162,7 @@ const LIST_PREFIX_SOURCE = String.raw`\s*(?:[-*+]|\d+\.)\s+`;
 const LIST_PREFIX = new RegExp(`^${LIST_PREFIX_SOURCE}`);
 /** A task's checkbox, after the list prefix if there is one, with the
  *  character inside it and the space after it. */
-const CHECKBOX = new RegExp(`^(${LIST_PREFIX_SOURCE})?\\[(.)\\](?:\\s+|$)`);
+const CHECKBOX = new RegExp(`^(${LIST_PREFIX_SOURCE})?\\[(.)\\](?:\\s+|$)`, 'u');
 
 /** What an item or cell sorts by: the rank of its status, then its text. */
 interface ItemKey { rank: string; text: string }
