@@ -20,7 +20,7 @@ interface SortOptions {
     /** The table column to sort by. Not in google/keep-sorted, which has no
      *  table support. */
     column?: Column;
-    /** Not in google/keep-sorted, which has no tasks. */
+    /** What an item sorts by. Not in google/keep-sorted, which has no tasks. */
     key: SortKey;
 }
 
@@ -127,8 +127,7 @@ function directed(cmp: number, order: SortOptions['order']): number {
  *  option is no. */
 function extractSortKey(line: string, keepCase: Flag): string {
     let s = line;
-    // Strip list prefix: "- ", "* ", "+ ", or "N. "
-    s = s.replace(/^\s*(?:[-*+]|\d+\.)\s+/, '');
+    s = s.replace(LIST_PREFIX, '');
     // Wikilink: [[file|display]] → display, [[file]] → file
     s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_: string, file: string, display: string | undefined) => display ?? file);
     // Markdown link: [text](url) → text
@@ -150,34 +149,39 @@ function ignoreLeadingPunctuation(s: string): string {
     return name === '' ? s : name;
 }
 
+/** A list item's prefix: indent, "-", "*", "+" or "N.", and the space after. */
+const LIST_PREFIX_SOURCE = String.raw`\s*(?:[-*+]|\d+\.)\s+`;
+const LIST_PREFIX = new RegExp(`^${LIST_PREFIX_SOURCE}`);
 /** A task's checkbox, after the list prefix if there is one, with the
  *  character inside it and the space after it. */
-const CHECKBOX = /^(\s*(?:[-*+]|\d+\.)\s+)?\[(.)\](?:\s+|$)/;
+const CHECKBOX = new RegExp(`^(${LIST_PREFIX_SOURCE})?\\[(.)\\](?:\\s+|$)`);
 
-/** What an item or cell sorts by. With key=task-status the checkbox is
- *  split off as the status and the text is what follows it; otherwise there
- *  is no status and the text is the whole item. */
-interface ItemKey { status?: string; text: string }
+/** What an item or cell sorts by: the rank of its status, then its text. */
+interface ItemKey { rank: string; text: string }
 
-function itemKey(s: string, options: SortOptions): ItemKey {
-    const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
-    return { status: box?.[2], text: extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case) };
-}
-
-/** Where a status sorts, as a string compared by ordinal: open tasks first,
- *  done tasks last, every other status between them by its character, and
- *  items with no checkbox after those, so a mixed list still sorts. */
+/** The ranks statuses sort in, compared by ordinal: open tasks first, done
+ *  tasks last, every other status between them by its character, and items
+ *  with no checkbox after those, so a mixed list still sorts. Without
+ *  key=task-status every item has no checkbox, so the text decides. */
+const OPEN = '0', NO_CHECKBOX = '2', DONE = '3';
 function statusRank(status: string | undefined): string {
-    if (status === ' ') return '0';
-    if (status === undefined) return '2';
-    if (status.toLowerCase() === 'x') return '3';
+    if (status === undefined) return NO_CHECKBOX;
+    if (status === ' ') return OPEN;
+    if (status.toLowerCase() === 'x') return DONE;
     return `1${status}`;
 }
 
-/** Compares two items: by status, then by text. Without key=task-status no
- *  item has a status, so the text decides. */
+/** The key of an item or cell. With key=task-status the checkbox is split
+ *  off as the status and the text is what follows it; otherwise the text is
+ *  the whole item. */
+function itemKey(s: string, options: SortOptions): ItemKey {
+    const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
+    return { rank: statusRank(box?.[2]), text: extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case) };
+}
+
+/** Compares two items: by status, then by text. */
 function compareItems(a: ItemKey, b: ItemKey, compareText: (x: string, y: string) => number): number {
-    return ordinal(statusRank(a.status), statusRank(b.status)) || compareText(a.text, b.text);
+    return ordinal(a.rank, b.rank) || compareText(a.text, b.text);
 }
 
 const indentOf = (s: string) => s.search(/\S/);
@@ -309,7 +313,7 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
         full: extractSortKey(row, options.case),
     }));
     // A cell of only a checkbox is not empty: its status is its content.
-    const isEmpty = (k: ItemKey) => k.status === undefined && k.text === '';
+    const isEmpty = (k: ItemKey) => k.rank === NO_CHECKBOX && k.text === '';
     keyed.sort((a, b) => {
         if (isEmpty(a.cell) !== isEmpty(b.cell)) return isEmpty(a.cell) ? 1 : -1;
         const byCell = compareItems(a.cell, b.cell, (x, y) => compareCells(x, y, options.numeric));
