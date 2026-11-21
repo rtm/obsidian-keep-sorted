@@ -179,12 +179,23 @@ function statusRank(status: string | undefined): string {
     return `1${status}`;
 }
 
-/** The key of an item or cell. With key=task-status the checkbox is split
- *  off as the status and the text is what follows it; otherwise the text is
- *  the whole item. */
+/** An item's own sort key, marked inline: the text between a start-key and an
+ *  end-key comment. The three groups are the opening marker, the key and the
+ *  closing marker. A key cannot contain %%, so a marker left unclosed, or
+ *  another opened inside it, never swallows the text after it. Not in
+ *  google/keep-sorted. */
+const SORT_KEY_OPEN = '%% keep-sorted start-key %%';
+const SORT_KEY_CLOSE = '%% keep-sorted end-key %%';
+const SORT_KEY = /(%%\s*keep-sorted\s+start-key\s*%%)((?:(?!%%)[^])*)(%%\s*keep-sorted\s+end-key\s*%%)/;
+
+/** The key of an item or cell. A marked sort key is the text; otherwise the
+ *  text is the whole item. With key=task-status the checkbox is split off as
+ *  the status, and a marked key then replaces only the text that follows it. */
 function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
-    return { rank: statusRank(box?.[2]), text: extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case) };
+    const marked = SORT_KEY.exec(s)?.[2];
+    const text = marked ?? (box ? s.replace(CHECKBOX, '$1') : s);
+    return { rank: statusRank(box?.[2]), text: extractSortKey(text, options.case) };
 }
 
 /** Compares two items: by status, then by text. */
@@ -198,7 +209,7 @@ const isBlank = (s: string) => s.trim() === '';
 const ORDERED_PREFIX = /^(\s*)(\d+)\.(\s)/;
 /** The markers, each alone on its line. A trailing \r is tolerated so a
  *  CRLF file still sorts. */
-const START_MARKER = /^\s*%%\s*keep-sorted\s+start(.*?)%%[ \t]*\r?$/;
+const START_MARKER = /^\s*%%\s*keep-sorted\s+start(?![-\w])(.*?)%%[ \t]*\r?$/;
 const END_MARKER = /^\s*%%\s*keep-sorted\s+end\s*%%/;
 
 /** A Markdown table's separator row: cells of dashes, optionally colon-aligned. */
@@ -359,6 +370,25 @@ function sortUnder(group: string[], options: SortOptions): string[] {
  *  beside the pattern that reads it. */
 export function wrapInMarkers(text: string): string {
     return `%% keep-sorted start %%\n${text}\n%% keep-sorted end %%`;
+}
+
+/** Marks text on a line as its item's sort key: the characters from `from` to
+ *  `to` get the key markers around them. A key the line already has is
+ *  replaced, since only the first counts, and the text it enclosed stays. */
+export function markSortKey(line: string, from: number, to: number): string {
+    const old = SORT_KEY.exec(line);
+    if (old) {
+        const [whole, open, key, close] = old;
+        // Offsets after the old markers are gone. One inside a marker lands at
+        // the nearest edge of the key.
+        const unmarked = (p: number) =>
+            p <= old.index ? p
+            : p >= old.index + whole.length ? p - open.length - close.length
+            : Math.min(Math.max(p - open.length, old.index), old.index + key.length);
+        [from, to] = [unmarked(from), unmarked(to)];
+        line = line.replace(SORT_KEY, '$2');
+    }
+    return `${line.slice(0, from)}${SORT_KEY_OPEN}${line.slice(from, to)}${SORT_KEY_CLOSE}${line.slice(to)}`;
 }
 
 /** The line of the end marker that closes the block opened just before

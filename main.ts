@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, Editor } from 'obsidian';
-import { sortKeepSortedBlocks, wrapInMarkers } from './sort';
+import { markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
  *  every change reorders lines under the cursor while they are still being
@@ -34,6 +34,25 @@ export default class KeepSortedPlugin extends Plugin {
                 // replaceRange on the main selection, not replaceSelection, which
                 // would insert the block at every cursor.
                 editor.replaceRange(wrapInMarkers(editor.getSelection()), editor.getCursor('from'), editor.getCursor('to'));
+            }
+        });
+
+        this.addCommand({
+            id: 'mark-selection-as-sort-key',
+            name: 'Mark selection as sort key',
+            editorCallback: (editor: Editor) => {
+                const from = editor.getCursor('from');
+                const to = editor.getCursor('to');
+                if (from.line !== to.line) {
+                    new Notice('Keep Sorted: a sort key must lie on one line.');
+                    return;
+                }
+                if (from.ch === to.ch) {
+                    new Notice('Keep Sorted: select the text to use as the sort key.');
+                    return;
+                }
+                const line = editor.getLine(from.line);
+                editor.replaceRange(markSortKey(line, from.ch, to.ch), { line: from.line, ch: 0 }, { line: from.line, ch: line.length });
             }
         });
     }
