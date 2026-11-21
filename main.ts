@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, Editor } from 'obsidian';
-import { markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort';
+import { changedSpan, markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
  *  every change reorders lines under the cursor while they are still being
@@ -52,7 +52,10 @@ export default class KeepSortedPlugin extends Plugin {
                     return;
                 }
                 const line = editor.getLine(from.line);
-                editor.replaceRange(markSortKey(line, from.ch, to.ch), { line: from.line, ch: 0 }, { line: from.line, ch: line.length });
+                // Change only the span that differs, so the caret does not jump
+                // to the end of the line and undo undoes just the markers.
+                const edit = changedSpan(line, markSortKey(line, from.ch, to.ch));
+                editor.replaceRange(edit.text, { line: from.line, ch: edit.from }, { line: from.line, ch: edit.to });
             }
         });
     }

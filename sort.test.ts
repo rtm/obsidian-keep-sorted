@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
+import { changedSpan, markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
@@ -499,4 +499,36 @@ test('markSortKey on text inside the old key moves the key to that text', () => 
     const line = keyed('- ', 'Alice Reed');
     const from = line.indexOf('Reed');
     assert.equal(markSortKey(line, from, from + 4), `- Alice ${keyed('', 'Reed')}`);
+});
+
+test('an empty or blank key counts as absent, so the item sorts by its whole line', () => {
+    const input = block(`- Zoe ${keyed('', '')}\n- Mary ${keyed('', '  ')}\n- Adams\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Adams\n- Mary ${keyed('', '  ')}\n- Zoe ${keyed('', '')}\n`));
+});
+
+test('a marked key keeps its leading punctuation and list-like prefix', () => {
+    const input = block(`- ${keyed('', 'a')}\n- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n- ${keyed('', 'a')}\n`));
+});
+
+test('a key on a continuation line does not decide the item\'s place', () => {
+    const input = block(`- x\n    ${keyed('', 'a')}\n- m\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- m\n- x\n    ${keyed('', 'a')}\n`));
+});
+
+test('changedSpan names the one span that differs, and applying it gives the new line', () => {
+    const cases: [string, string][] = [
+        ['- Alice Reed, organist', markSortKey('- Alice Reed, organist', 8, 12)],
+        [keyed('- Alice ', 'Reed', ', organist'), markSortKey(keyed('- Alice ', 'Reed', ', organist'), 2, 7)],
+        ['same', 'same'],
+        ['', 'new'],
+        ['gone', ''],
+        ['aaa', 'aaaa'],
+    ];
+    for (const [before, after] of cases) {
+        const { from, to, text } = changedSpan(before, after);
+        assert.equal(before.slice(0, from) + text + before.slice(to), after);
+    }
+    assert.deepEqual(changedSpan('abc', 'a%%X%%bc'), { from: 1, to: 1, text: '%%X%%' });
+    assert.deepEqual(changedSpan('same', 'same'), { from: 4, to: 4, text: '' });
 });

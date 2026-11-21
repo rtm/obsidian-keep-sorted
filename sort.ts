@@ -192,14 +192,16 @@ const SORT_KEY_OPEN = '%% keep-sorted start-key %%';
 const SORT_KEY_CLOSE = '%% keep-sorted end-key %%';
 const SORT_KEY = /(%%\s*keep-sorted\s+start-key\s*%%)((?:(?!%%)[^])*)(%%\s*keep-sorted\s+end-key\s*%%)/;
 
-/** The key of an item or cell. A marked sort key is the text; otherwise the
- *  text is the whole item. With key=task-status the checkbox is split off as
- *  the status, and a marked key then replaces only the text that follows it. */
+/** The key of an item or cell. A marked sort key, read as written apart from
+ *  link syntax and formatting, is the text; an empty one counts as absent.
+ *  Otherwise the text is the whole item. With key=task-status the checkbox is
+ *  split off as the status, and a marked key then replaces only the text that
+ *  follows it. */
 function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
-    const marked = SORT_KEY.exec(s)?.[2];
-    const text = marked ?? (box ? s.replace(CHECKBOX, '$1') : s);
-    return { rank: statusRank(box?.[2]), text: extractSortKey(text, options.case) };
+    const marked = SORT_KEY.exec(s)?.[2].trim();
+    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case);
+    return { rank: statusRank(box?.[2]), text };
 }
 
 /** Compares two items: by status, then by text. */
@@ -393,6 +395,17 @@ export function markSortKey(line: string, from: number, to: number): string {
         line = line.replace(SORT_KEY, '$2');
     }
     return `${line.slice(0, from)}${SORT_KEY_OPEN}${line.slice(from, to)}${SORT_KEY_CLOSE}${line.slice(to)}`;
+}
+
+/** The smallest edit that turns one line into another: replace the characters
+ *  from `from` up to `to` in the old line with `text`. Lets an editor change
+ *  only that span, so the caret and the undo step stay local. */
+export function changedSpan(before: string, after: string): { from: number; to: number; text: string } {
+    let from = 0;
+    while (from < before.length && from < after.length && before[from] === after[from]) from++;
+    let tail = 0;
+    while (tail < before.length - from && tail < after.length - from && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
+    return { from, to: before.length - tail, text: after.slice(from, after.length - tail) };
 }
 
 /** The line of the end marker that closes the block opened just before

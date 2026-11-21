@@ -41,7 +41,7 @@ When the part of an item that should decide its place is in the middle of the li
 %% keep-sorted end %%
 ```
 
-The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. Only the first complete pair on a line counts, and a marker left unclosed is ignored. The key is read like any item text, without link syntax or formatting, so `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
+The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and the leading punctuation a plain item would skip is kept. `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
 
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
