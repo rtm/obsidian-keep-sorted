@@ -134,16 +134,20 @@ function directed(cmp: number, order: SortOptions['order']): number {
 /** The text a line sorts by: what the reader sees, lowercased when the case
  *  option is no. */
 function extractSortKey(line: string, keepCase: Flag): string {
-    let s = line;
-    s = s.replace(LIST_PREFIX, '');
+    return ignoreLeadingPunctuation(visibleText(line.replace(LIST_PREFIX, ''), keepCase).trim());
+}
+
+/** Text as the reader sees it: link syntax and formatting removed, and
+ *  lowercased when the case option is no. */
+function visibleText(text: string, keepCase: Flag): string {
+    let s = text;
     // Wikilink: [[file|display]] → display, [[file]] → file
     s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_: string, file: string, display: string | undefined) => display ?? file);
     // Markdown link: [text](url) → text
     s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
     // Markdown formatting: **, __, ~~, *, _, `
     s = s.replace(/\*\*|__|~~|[*_`]/g, '');
-    if (keepCase !== 'yes') s = s.toLowerCase();
-    return ignoreLeadingPunctuation(s.trim());
+    return keepCase !== 'yes' ? s.toLowerCase() : s;
 }
 
 /** Punctuation in front of a name is not part of it: “Paper” and (Paper) sort
