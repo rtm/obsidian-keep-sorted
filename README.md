@@ -31,6 +31,18 @@ A task list can be sorted by its checkboxes instead of by its text, with `key=ta
 
 Open tasks (`[ ]`) come first and done tasks (`[x]` or `[X]`) last. Any other status, such as `[-]` or `[/]`, sorts between them by its character, and lines with no checkbox go after those, just before the done tasks. Within a status, items sort by the text after the checkbox, as a plain list would, so `case`, `numeric` and the rest apply there, and `order=desc` reverses the whole order, statuses included. A `key` that is neither `text` nor `task-status` sorts by text and logs a warning in the developer console.
 
+When the part of an item that should decide its place is in the middle of the line, such as a surname, mark it in the item with `start-key` and `end-key` comments:
+
+```
+%% keep-sorted start %%
+- Dr. Carol %% keep-sorted start-key %%Moore%% keep-sorted end-key %%, who played at the cathedral
+- [[Bob Adams]]
+- Concert organist Alice %% keep-sorted start-key %%Reed%% keep-sorted end-key %%
+%% keep-sorted end %%
+```
+
+The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and the leading punctuation a plain item would skip is kept. `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
+
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
 ```
@@ -110,6 +122,7 @@ Sort keys are derived by stripping the following from each line:
 - Wikilinks: `[[file|display]]` sorts by display text; `[[file]]` sorts by file
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
+- Everything but the marked key, on an item that carries `start-key` and `end-key` markers
 - Punctuation at the front of what is left: `“Paper”` and `(Paper)` both sort as `Paper`. A number keeps its sign, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is.
 
 Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
@@ -122,6 +135,7 @@ All commands are available from the command palette (Ctrl/Cmd+P), prefixed with 
 |---|---|
 | **Sort keep-sorted blocks in all files** | Re-sort all marked blocks across the entire vault |
 | **Mark selection** | Wrap the current selection with `keep-sorted` start/end markers |
+| **Mark selection as sort key** | Wrap the selected text, which must lie on one line, in `start-key`/`end-key` markers, replacing the item's old key if it has one |
 
 ## Acknowledgments
 

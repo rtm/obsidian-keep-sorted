@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
+import { changedSpan, markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
@@ -384,4 +384,151 @@ test('a key that is not a sort key sorts by text', () => {
 
 test('a block made by wrapInMarkers is found and sorted', () => {
     assert.equal(sortKeepSortedBlocks(wrapInMarkers('- b\n- a')), wrapInMarkers('- a\n- b'));
+});
+
+/** An item whose sort key is the text between the key markers. */
+const keyed = (before: string, key: string, after = '') =>
+    `${before}%% keep-sorted start-key %%${key}%% keep-sorted end-key %%${after}`;
+
+test('an item sorts by its marked key rather than its whole line', () => {
+    const input = block(`- ${keyed('Dr. Alice ', 'Zimmer')}, organist
+- ${keyed('Bob ', 'Adams')}, organist
+- ${keyed('Carol ', 'Moore')}
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('Bob ', 'Adams')}, organist
+- ${keyed('Carol ', 'Moore')}
+- ${keyed('Dr. Alice ', 'Zimmer')}, organist
+`));
+});
+
+test('an item without a key sorts by its whole line among keyed ones', () => {
+    const input = block(`- ${keyed('Zed ', 'Mallory')}
+- Adams
+- Zoe Brown
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Adams
+- ${keyed('Zed ', 'Mallory')}
+- Zoe Brown
+`));
+});
+
+test('a key is read without its link syntax, and honors case, order and numeric', () => {
+    const opts = 'case=no order=desc numeric=yes';
+    const input = block(`- ${keyed('', '[[Room 10]]')}
+- ${keyed('', 'room 2')}
+- ${keyed('', 'ROOM 1')}
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', '[[Room 10]]')}
+- ${keyed('', 'room 2')}
+- ${keyed('', 'ROOM 1')}
+`, opts));
+});
+
+test('the first pair on a line is its key', () => {
+    const input = block(`- ${keyed('', 'b')} ${keyed('', 'z')}
+- ${keyed('', 'c')}
+- ${keyed('', 'a')}
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', 'a')}
+- ${keyed('', 'b')} ${keyed('', 'z')}
+- ${keyed('', 'c')}
+`));
+});
+
+test('an unclosed start-key leaves the whole line as the key', () => {
+    const input = block('- b %% keep-sorted start-key %%a\n- c\n- a\n');
+    assert.equal(sortKeepSortedBlocks(input), block('- a\n- b %% keep-sorted start-key %%a\n- c\n'));
+});
+
+test('a start-key inside another start-key does not swallow the text between', () => {
+    const input = block(`- x %% keep-sorted start-key %% ${keyed('', 'm')}\n- l\n- n\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- l\n- x %% keep-sorted start-key %% ${keyed('', 'm')}\n- n\n`));
+});
+
+test('a line that begins with a key marker is not taken for a block marker', () => {
+    const input = block(`${keyed('', 'b')}
+${keyed('', 'a')}
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`${keyed('', 'a')}
+${keyed('', 'b')}
+`));
+});
+
+test('a marked key takes the place of the text after the checkbox with key=task-status', () => {
+    const opts = 'key=task-status';
+    const input = block(`- [ ] ${keyed('', 'z')}
+- [x] ${keyed('', 'a')}
+- [ ] ${keyed('', 'b')}
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- [ ] ${keyed('', 'b')}
+- [ ] ${keyed('', 'z')}
+- [x] ${keyed('', 'a')}
+`, opts));
+});
+
+test('a table cell can carry a key too', () => {
+    const opts = ' column=Name';
+    const input = block(`| Name |
+| --- |
+| ${keyed('Bob ', 'Zed')} |
+| ${keyed('Al ', 'Adams')} |
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`| Name |
+| --- |
+| ${keyed('Al ', 'Adams')} |
+| ${keyed('Bob ', 'Zed')} |
+`, opts));
+});
+
+test('markSortKey wraps the selected text in the key markers', () => {
+    assert.equal(markSortKey('- Alice Reed, organist', 8, 12), '- Alice %% keep-sorted start-key %%Reed%% keep-sorted end-key %%, organist');
+});
+
+test('markSortKey replaces a key the line already has, keeping its text', () => {
+    const line = keyed('- Alice ', 'Reed', ', organist');
+    const from = line.indexOf('organist');
+    assert.equal(markSortKey(line, from, from + 'organist'.length), `- Alice Reed, ${keyed('', 'organist')}`);
+});
+
+test('markSortKey finds a selection that came before the old key', () => {
+    const line = keyed('- Alice Reed ', 'organist');
+    assert.equal(markSortKey(line, 2, 7), `- ${keyed('', 'Alice')} Reed organist`);
+});
+
+test('markSortKey on text inside the old key moves the key to that text', () => {
+    const line = keyed('- ', 'Alice Reed');
+    const from = line.indexOf('Reed');
+    assert.equal(markSortKey(line, from, from + 4), `- Alice ${keyed('', 'Reed')}`);
+});
+
+test('an empty or blank key counts as absent, so the item sorts by its whole line', () => {
+    const input = block(`- Zoe ${keyed('', '')}\n- Mary ${keyed('', '  ')}\n- Adams\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- Adams\n- Mary ${keyed('', '  ')}\n- Zoe ${keyed('', '')}\n`));
+});
+
+test('a marked key keeps its leading punctuation and list-like prefix', () => {
+    const input = block(`- ${keyed('', 'a')}\n- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n- ${keyed('', 'a')}\n`));
+});
+
+test('a key on a continuation line does not decide the item\'s place', () => {
+    const input = block(`- x\n    ${keyed('', 'a')}\n- m\n`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- m\n- x\n    ${keyed('', 'a')}\n`));
+});
+
+test('changedSpan names the one span that differs, and applying it gives the new line', () => {
+    const cases: [string, string][] = [
+        ['- Alice Reed, organist', markSortKey('- Alice Reed, organist', 8, 12)],
+        [keyed('- Alice ', 'Reed', ', organist'), markSortKey(keyed('- Alice ', 'Reed', ', organist'), 2, 7)],
+        ['same', 'same'],
+        ['', 'new'],
+        ['gone', ''],
+        ['aaa', 'aaaa'],
+    ];
+    for (const [before, after] of cases) {
+        const { from, to, text } = changedSpan(before, after);
+        assert.equal(before.slice(0, from) + text + before.slice(to), after);
+    }
+    assert.deepEqual(changedSpan('abc', 'a%%X%%bc'), { from: 1, to: 1, text: '%%X%%' });
+    assert.deepEqual(changedSpan('same', 'same'), { from: 4, to: 4, text: '' });
 });
