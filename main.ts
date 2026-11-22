@@ -68,9 +68,11 @@ export default class KeepSortedPlugin extends Plugin {
                 const line = editor.getLine(from.line);
                 // The selection, when it lies on this line, is the likely key;
                 // otherwise the key the line has, so it can be edited.
-                const selected = from.line === to.line ? line.slice(from.ch, to.ch) : '';
+                const selected = from.line === to.line ? line.slice(from.ch, to.ch).trim() : '';
                 new SortKeyModal(this.app, selected || sortKeyOf(line) || '', (key) => {
-                    const edit = changedSpan(line, setSortKey(line, key));
+                    // Reread: the line may have changed while the dialog was open.
+                    const now = editor.getLine(from.line);
+                    const edit = changedSpan(now, setSortKey(now, key, from.ch));
                     editor.replaceRange(edit.text, { line: from.line, ch: edit.from }, { line: from.line, ch: edit.to });
                 }).open();
             }
@@ -136,7 +138,8 @@ class SortKeyModal extends Modal {
         new Setting(this.contentEl).setName('Sort key').addText(text => {
             text.setValue(value).onChange(v => { value = v; });
             text.inputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); this.submit(value); }
+                // Not the Enter that commits an IME composition.
+                if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); this.submit(value); }
             });
             text.inputEl.focus();
             text.inputEl.select();

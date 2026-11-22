@@ -420,12 +420,30 @@ export function markSortKey(line: string, from: number, to: number): string {
 
 /** Gives a line's item the key, in a keep-sorted-key comment: in place of the
  *  comment it already has, else after a start-key and end-key pair, whose
- *  markers come off, else at the end of the line. */
-export function setSortKey(line: string, key: string): string {
+ *  markers come off, else at the end of the line, or, in a table row, at the
+ *  end of the cell at `at`, since a comment after the last pipe would be a
+ *  cell of its own. An empty key changes nothing. */
+export function setSortKey(line: string, key: string, at = line.length): string {
+    if (key.trim() === '') return line;
     const comment = keyComment(key.trim());
     if (KEY_COMMENT.test(line)) return line.replace(KEY_COMMENT, (_, space: string) => `${space}${comment}`);
     if (SORT_KEY.test(line)) return line.replace(SORT_KEY, (_, __, text: string) => `${text} ${comment}`);
-    return `${line.trimEnd()} ${comment}`;
+    const end = isTableRow(line) ? cellEnd(line, at) : line.length;
+    return `${line.slice(0, end).trimEnd()} ${comment}${end < line.length ? ' ' : ''}${line.slice(end)}`;
+}
+
+/** Whether a line is a table row: it starts with a pipe and has another. */
+function isTableRow(line: string): boolean {
+    return /^\s*\|/.test(line) && splitCells(line).length > 1;
+}
+
+/** The offset of the unescaped pipe that closes the cell holding `at`, or
+ *  the line's end if the row has no pipe after it. */
+function cellEnd(line: string, at: number): number {
+    const pipe = /(?<!\\)\|/g;
+    pipe.lastIndex = Math.max(at, 1);
+    const m = pipe.exec(line);
+    return m ? m.index : line.length;
 }
 
 /** The key a line's item has, in either form, or undefined. */

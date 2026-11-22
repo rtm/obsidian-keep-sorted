@@ -611,6 +611,15 @@ test('setSortKey appends a key comment to a line without one', () => {
     assert.equal(setSortKey('- [[Alice Reed]], organist  ', ' Reed '), '- [[Alice Reed]], organist %% keep-sorted-key Reed %%');
 });
 
+test('setSortKey puts the comment in the cell under the cursor in a table row, and leaves the line alone for an empty key', () => {
+    const row = '| [[Al Adams]] | 3 |';
+    assert.equal(setSortKey(row, 'Adams', 4), '| [[Al Adams]] %% keep-sorted-key Adams %% | 3 |');
+    assert.equal(setSortKey(row, 'three', row.indexOf('3')), '| [[Al Adams]] | 3 %% keep-sorted-key three %% |');
+    assert.equal(setSortKey('| [[A\\|B]] | 3', 'x', 0), '| [[A\\|B]] %% keep-sorted-key x %% | 3');
+    assert.equal(setSortKey(row, '  '), row);
+    assert.equal(setSortKey('- a', ' '), '- a');
+});
+
 test('setSortKey replaces a key comment in place and a pair with its text', () => {
     assert.equal(setSortKey(commented('- [[Alice Reed]]', 'Alice', ', organist'), 'Reed'), commented('- [[Alice Reed]]', 'Reed', ', organist'));
     assert.equal(setSortKey(keyed('- Alice ', 'Reed', ', organist'), 'Alice'), '- Alice Reed %% keep-sorted-key Alice %%, organist');

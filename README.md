@@ -53,7 +53,7 @@ When the key cannot be wrapped, because the name sits inside a link, where a com
 %% keep-sorted end %%
 ```
 
-The key is everything between `keep-sorted-key` and the closing `%%`, so it may contain spaces, and it is read the same way as a marked pair. It can sit anywhere on the item's first line, the first one counts, and it wins over a pair on the same line; an empty one is ignored. The comment is never part of the item's text, so an item left without a key still sorts by what it shows. Not in Google's keep-sorted.
+The key is everything between `keep-sorted-key` and the closing `%%`, so it may contain spaces, and it is read the same way as a marked pair. It can sit anywhere on the item's first line and wins over a pair on the same line. The first one on the line is the one read, so an empty one is ignored even if another follows, and the item sorts by its pair or its text. The comment is never part of the item's text, so an item left without a key still sorts by what it shows. Not in Google's keep-sorted.
 
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
@@ -148,7 +148,7 @@ All commands are available from the command palette (Ctrl/Cmd+P), prefixed with 
 | **Sort keep-sorted blocks in all files** | Re-sort all marked blocks across the entire vault |
 | **Mark selection** | Wrap the current selection with `keep-sorted` start/end markers |
 | **Mark selection as sort key** | Wrap the selected text, which must lie on one line, in `start-key`/`end-key` markers, replacing the item's old key if it has one |
-| **Set sort key** | Ask for the current line's sort key and put it in a `keep-sorted-key` comment, in place of the key the line has in either form; the selection, or the line's current key, is offered as the starting text |
+| **Set sort key** | Ask for the current line's sort key and put it in a `keep-sorted-key` comment, in place of the key the line has in either form, else at the end of the line, or of the cell under the cursor in a table; the selection, or the line's current key, is offered as the starting text |
 
 ## Acknowledgments
 
