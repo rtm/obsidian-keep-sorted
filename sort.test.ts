@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { changedSpan, markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort.ts';
+import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
@@ -514,6 +514,123 @@ test('a marked key keeps its leading punctuation and list-like prefix', () => {
 test('a key on a continuation line does not decide the item\'s place', () => {
     const input = block(`- x\n    ${keyed('', 'a')}\n- m\n`);
     assert.equal(sortKeepSortedBlocks(input), block(`- m\n- x\n    ${keyed('', 'a')}\n`));
+});
+
+/** An item whose sort key is given in a keep-sorted-key comment. */
+const commented = (before: string, key: string, after = '') => `${before} %% keep-sorted-key ${key} %%${after}`;
+
+test('an item sorts by the key in its keep-sorted-key comment', () => {
+    const input = block(`- ${commented('[[Alice Zimmer]]', 'Zimmer', ', organist')}
+- ${commented('[[Bob Adams]]', 'Adams')}
+- ${commented('[[Mrs. Dalloway]]', 'Woolf')}
+- [[Carol Moore]]
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${commented('[[Bob Adams]]', 'Adams')}
+- [[Carol Moore]]
+- ${commented('[[Mrs. Dalloway]]', 'Woolf')}
+- ${commented('[[Alice Zimmer]]', 'Zimmer', ', organist')}
+`));
+});
+
+test('a key comment may hold spaces, honors case, order and numeric, and is read without link syntax', () => {
+    const opts = 'case=no order=desc numeric=yes';
+    const input = block(`- ${commented('x', '[[Room 10]]')}
+- ${commented('y', 'room 2 b')}
+- ${commented('z', 'ROOM 1')}
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${commented('x', '[[Room 10]]')}
+- ${commented('y', 'room 2 b')}
+- ${commented('z', 'ROOM 1')}
+`, opts));
+});
+
+test('a key comment wins over a pair on the same line, and the first comment counts', () => {
+    const input = block(`- ${commented(keyed('', 'z'), 'b')} %% keep-sorted-key y %%
+- c
+- a
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- a
+- ${commented(keyed('', 'z'), 'b')} %% keep-sorted-key y %%
+- c
+`));
+});
+
+test('an empty key comment is ignored, leaves the line to its pair or its text, and is not part of that text', () => {
+    const input = block(`- ${commented('zed', '')}
+- ${commented(keyed('m ', 'b'), ' ')}
+- c
+- a
+`);
+    assert.equal(sortKeepSortedBlocks(input), block(`- a
+- ${commented(keyed('m ', 'b'), ' ')}
+- c
+- ${commented('zed', '')}
+`));
+});
+
+test('a key comment is not mistaken for a block marker, and keep-sorted-keyword is not a key comment', () => {
+    const input = block(`%% keep-sorted-key b %% x
+- %% keep-sorted-keyword a %% z
+- y
+`);
+    // The first line sorts as b; the second, with no key, as its text less its
+    // leading punctuation, keep-sorted-keyword.
+    assert.equal(sortKeepSortedBlocks(input), block(`%% keep-sorted-key b %% x
+- %% keep-sorted-keyword a %% z
+- y
+`));
+});
+
+test('a key comment replaces the text after the checkbox with key=task-status', () => {
+    const opts = 'key=task-status';
+    const input = block(`- [ ] ${commented('zed', 'z')}
+- [x] ${commented('ann', 'a')}
+- [ ] ${commented('bea', 'b')}
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`- [ ] ${commented('bea', 'b')}
+- [ ] ${commented('zed', 'z')}
+- [x] ${commented('ann', 'a')}
+`, opts));
+});
+
+test('a table cell can carry a key comment', () => {
+    const opts = ' column=Name';
+    const input = block(`| Name |
+| --- |
+| ${commented('[[Bob Zed]]', 'Zed')} |
+| ${commented('[[Al Adams]]', 'Adams')} |
+`, opts);
+    assert.equal(sortKeepSortedBlocks(input), block(`| Name |
+| --- |
+| ${commented('[[Al Adams]]', 'Adams')} |
+| ${commented('[[Bob Zed]]', 'Zed')} |
+`, opts));
+});
+
+test('setSortKey appends a key comment to a line without one', () => {
+    assert.equal(setSortKey('- [[Alice Reed]], organist  ', ' Reed '), '- [[Alice Reed]], organist %% keep-sorted-key Reed %%');
+});
+
+test('setSortKey replaces a key comment in place and a pair with its text', () => {
+    assert.equal(setSortKey(commented('- [[Alice Reed]]', 'Alice', ', organist'), 'Reed'), commented('- [[Alice Reed]]', 'Reed', ', organist'));
+    assert.equal(setSortKey(keyed('- Alice ', 'Reed', ', organist'), 'Alice'), '- Alice Reed %% keep-sorted-key Alice %%, organist');
+});
+
+test('markSortKey removes a key comment and still finds the selection', () => {
+    const line = commented('- Alice', 'x', ' Reed, organist');
+    const reed = line.indexOf('Reed');
+    assert.equal(markSortKey(line, reed, reed + 4), `- Alice ${keyed('', 'Reed')}, organist`);
+    const alice = line.indexOf('Alice');
+    assert.equal(markSortKey(line, alice, alice + 5), `- ${keyed('', 'Alice')} Reed, organist`);
+    const inside = line.indexOf('%%');
+    assert.equal(markSortKey(line, inside, inside + 2), `- Alice${keyed('', '')} Reed, organist`);
+});
+
+test('sortKeyOf reads the key in either form', () => {
+    assert.equal(sortKeyOf(commented('- a', 'Reed')), 'Reed');
+    assert.equal(sortKeyOf(keyed('- a ', 'Moore')), 'Moore');
+    assert.equal(sortKeyOf(commented(keyed('- a ', 'Moore'), 'Reed')), 'Reed');
+    assert.equal(sortKeyOf('- a'), undefined);
 });
 
 test('changedSpan names the one span that differs, and applying it gives the new line', () => {

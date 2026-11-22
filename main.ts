@@ -1,5 +1,5 @@
-import { Notice, Plugin, TFile, Editor } from 'obsidian';
-import { changedSpan, markSortKey, sortKeepSortedBlocks, wrapInMarkers } from './sort';
+import { App, Editor, Modal, Notice, Plugin, Setting, TFile } from 'obsidian';
+import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
  *  every change reorders lines under the cursor while they are still being
@@ -58,6 +58,23 @@ export default class KeepSortedPlugin extends Plugin {
                 editor.replaceRange(edit.text, { line: from.line, ch: edit.from }, { line: from.line, ch: edit.to });
             }
         });
+
+        this.addCommand({
+            id: 'set-sort-key',
+            name: 'Set sort key',
+            editorCallback: (editor: Editor) => {
+                const from = editor.getCursor('from');
+                const to = editor.getCursor('to');
+                const line = editor.getLine(from.line);
+                // The selection, when it lies on this line, is the likely key;
+                // otherwise the key the line has, so it can be edited.
+                const selected = from.line === to.line ? line.slice(from.ch, to.ch) : '';
+                new SortKeyModal(this.app, selected || sortKeyOf(line) || '', (key) => {
+                    const edit = changedSpan(line, setSortKey(line, key));
+                    editor.replaceRange(edit.text, { line: from.line, ch: edit.from }, { line: from.line, ch: edit.to });
+                }).open();
+            }
+        });
     }
 
     /** Sort whatever is still waiting rather than dropping it, so an edit made
@@ -103,5 +120,39 @@ export default class KeepSortedPlugin extends Plugin {
         for (const file of this.app.vault.getMarkdownFiles()) {
             await this.sortFile(file);
         }
+    }
+}
+
+/** Asks for a sort key. Enter or the button submits; an empty key, or one
+ *  holding %%, which would end the comment early, is refused. */
+class SortKeyModal extends Modal {
+    constructor(app: App, private initial: string, private onSubmit: (key: string) => void) {
+        super(app);
+    }
+
+    onOpen() {
+        this.titleEl.setText('Set sort key');
+        let value = this.initial;
+        new Setting(this.contentEl).setName('Sort key').addText(text => {
+            text.setValue(value).onChange(v => { value = v; });
+            text.inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); this.submit(value); }
+            });
+            text.inputEl.focus();
+            text.inputEl.select();
+        });
+        new Setting(this.contentEl).addButton(button => button.setButtonText('Set').setCta().onClick(() => this.submit(value)));
+    }
+
+    private submit(value: string) {
+        const key = value.trim();
+        if (key === '') { new Notice('Keep Sorted: the sort key is empty.'); return; }
+        if (key.includes('%%')) { new Notice('Keep Sorted: a sort key cannot contain %%.'); return; }
+        this.close();
+        this.onSubmit(key);
+    }
+
+    onClose() {
+        this.contentEl.empty();
     }
 }

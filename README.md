@@ -43,6 +43,18 @@ When the part of an item that should decide its place is in the middle of the li
 
 The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and the leading punctuation a plain item would skip is kept. `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
 
+When the key cannot be wrapped, because the name sits inside a link, where a comment would break it, or is not on the line at all, give it in one comment instead:
+
+```
+%% keep-sorted start %%
+- [[Carol Moore]] %% keep-sorted-key Moore %%, who played at the cathedral
+- [[Mrs. Dalloway]] %% keep-sorted-key Woolf %%
+- Concert organist Alice %% keep-sorted start-key %%Reed%% keep-sorted end-key %%
+%% keep-sorted end %%
+```
+
+The key is everything between `keep-sorted-key` and the closing `%%`, so it may contain spaces, and it is read the same way as a marked pair. It can sit anywhere on the item's first line, the first one counts, and it wins over a pair on the same line; an empty one is ignored. The comment is never part of the item's text, so an item left without a key still sorts by what it shows. Not in Google's keep-sorted.
+
 Tables also work: the header and separator rows are recognized and stay on top. Blank lines at the start and end of a block stay put, so the table can be set off from the markers, which Obsidian needs in order to render it as a table:
 
 ```
@@ -122,7 +134,7 @@ Sort keys are derived by stripping the following from each line:
 - Wikilinks: `[[file|display]]` sorts by display text; `[[file]]` sorts by file
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
-- Everything but the marked key, on an item that carries `start-key` and `end-key` markers
+- Everything but the key, on an item that carries a `keep-sorted-key` comment or `start-key` and `end-key` markers; a `keep-sorted-key` comment with nothing in it is dropped
 - Punctuation at the front of what is left: `“Paper”` and `(Paper)` both sort as `Paper`. A number keeps its sign, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is.
 
 Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
@@ -136,6 +148,7 @@ All commands are available from the command palette (Ctrl/Cmd+P), prefixed with 
 | **Sort keep-sorted blocks in all files** | Re-sort all marked blocks across the entire vault |
 | **Mark selection** | Wrap the current selection with `keep-sorted` start/end markers |
 | **Mark selection as sort key** | Wrap the selected text, which must lie on one line, in `start-key`/`end-key` markers, replacing the item's old key if it has one |
+| **Set sort key** | Ask for the current line's sort key and put it in a `keep-sorted-key` comment, in place of the key the line has in either form; the selection, or the line's current key, is offered as the starting text |
 
 ## Acknowledgments
 
