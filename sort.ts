@@ -192,15 +192,27 @@ const SORT_KEY_OPEN = '%% keep-sorted start-key %%';
 const SORT_KEY_CLOSE = '%% keep-sorted end-key %%';
 const SORT_KEY = /(%%\s*keep-sorted\s+start-key\s*%%)((?:(?!%%)[^])*)(%%\s*keep-sorted\s+end-key\s*%%)/;
 
+/** An item's sort key given in one comment, %% keep-sorted-key KEY %%, for a
+ *  key the pair cannot enclose: a name inside a link, which a comment would
+ *  break, or text the line does not show at all. The key is what follows the
+ *  marker word up to the closing %%, so it may hold spaces but not %%. The
+ *  first group is the whitespace before the comment, which goes with it when
+ *  the comment is removed; the second is the key. Not in google/keep-sorted. */
+const KEY_COMMENT = /(\s*)%%\s*keep-sorted-key(?![-\w])((?:(?!%%)[^])*)%%/;
+const keyComment = (key: string) => `%% keep-sorted-key ${key} %%`;
+
 /** The key of an item or cell. A marked sort key, read as written apart from
- *  link syntax and formatting, is the text; an empty one counts as absent.
- *  Otherwise the text is the whole item. With key=task-status the checkbox is
+ *  link syntax and formatting, is the text: the one in a keep-sorted-key
+ *  comment, else the one between a start-key and end-key pair; an empty one
+ *  counts as absent. Otherwise the text is the whole item, less any key
+ *  comment, which is never content. With key=task-status the checkbox is
  *  split off as the status, and a marked key then replaces only the text that
  *  follows it. */
 function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
-    const marked = SORT_KEY.exec(s)?.[2].trim();
-    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(box ? s.replace(CHECKBOX, '$1') : s, options.case);
+    const marked = KEY_COMMENT.exec(s)?.[2].trim() || SORT_KEY.exec(s)?.[2].trim();
+    const rest = (box ? s.replace(CHECKBOX, '$1') : s).replace(KEY_COMMENT, '');
+    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(rest, options.case);
     return { rank: statusRank(box?.[2]), text };
 }
 
@@ -380,8 +392,17 @@ export function wrapInMarkers(text: string): string {
 
 /** Marks text on a line as its item's sort key: the characters from `from` to
  *  `to` get the key markers around them. A key the line already has is
- *  replaced, since only the first counts, and the text it enclosed stays. */
+ *  replaced, since only the first counts: a key comment goes, and a pair's
+ *  markers go while the text they enclosed stays. */
 export function markSortKey(line: string, from: number, to: number): string {
+    const comment = KEY_COMMENT.exec(line);
+    if (comment) {
+        // Offsets after the comment move up by its length; one inside it
+        // lands where it was.
+        const unmarked = (p: number) => Math.max(Math.min(p, comment.index), p - comment[0].length);
+        [from, to] = [unmarked(from), unmarked(to)];
+        line = line.replace(KEY_COMMENT, '');
+    }
     const old = SORT_KEY.exec(line);
     if (old) {
         const [whole, open, key, close] = old;
@@ -395,6 +416,39 @@ export function markSortKey(line: string, from: number, to: number): string {
         line = line.replace(SORT_KEY, '$2');
     }
     return `${line.slice(0, from)}${SORT_KEY_OPEN}${line.slice(from, to)}${SORT_KEY_CLOSE}${line.slice(to)}`;
+}
+
+/** Gives a line's item the key, in a keep-sorted-key comment: in place of the
+ *  comment it already has, else after a start-key and end-key pair, whose
+ *  markers come off, else at the end of the line, or, in a table row, at the
+ *  end of the cell at `at`, since a comment after the last pipe would be a
+ *  cell of its own. An empty key changes nothing. */
+export function setSortKey(line: string, key: string, at = line.length): string {
+    if (key.trim() === '') return line;
+    const comment = keyComment(key.trim());
+    if (KEY_COMMENT.test(line)) return line.replace(KEY_COMMENT, (_, space: string) => `${space}${comment}`);
+    if (SORT_KEY.test(line)) return line.replace(SORT_KEY, (_, __, text: string) => `${text} ${comment}`);
+    const end = isTableRow(line) ? cellEnd(line, at) : line.length;
+    return `${line.slice(0, end).trimEnd()} ${comment}${end < line.length ? ' ' : ''}${line.slice(end)}`;
+}
+
+/** Whether a line is a table row: it starts with a pipe and has another. */
+function isTableRow(line: string): boolean {
+    return /^\s*\|/.test(line) && splitCells(line).length > 1;
+}
+
+/** The offset of the unescaped pipe that closes the cell holding `at`, or
+ *  the line's end if the row has no pipe after it. */
+function cellEnd(line: string, at: number): number {
+    const pipe = /(?<!\\)\|/g;
+    pipe.lastIndex = Math.max(at, 1);
+    const m = pipe.exec(line);
+    return m ? m.index : line.length;
+}
+
+/** The key a line's item has, in either form, or undefined. */
+export function sortKeyOf(line: string): string | undefined {
+    return KEY_COMMENT.exec(line)?.[2].trim() || SORT_KEY.exec(line)?.[2].trim() || undefined;
 }
 
 /** The smallest edit that turns one line into another: replace the characters
