@@ -127,6 +127,8 @@ Options can be added to the start marker:
 
 A value that is not one of those listed for `order`, `case`, `numeric`, `group`, `nested`, `key` or `ignore_punctuation` is ignored: the option is left as it was, which is its default unless the option is repeated, and a warning is logged in the developer console.
 
+A name that is not in the table is ignored too, with a warning in the developer console that says whether it is one of Google's options this plugin does not support, or, for a misspelling such as `casee`, which option you may have meant.
+
 These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column`, `key` and `ignore_punctuation`, which it does not have, and the default for `case` once you turn on the "Ignore case by default" setting. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation, sort by their character codes unless `ignore_punctuation=yes`. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction

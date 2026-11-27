@@ -1,5 +1,6 @@
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
@@ -699,6 +700,80 @@ test('a bad value leaves the options around it in effect', () => {
     const warnings = warningsFrom(() =>
         assert.equal(sortKeepSortedBlocks(block('- b\n- C\n- a\n', opts)), block('- b\n- a\n- C\n', opts)));
     assert.equal(warnings.length, 1);
+});
+
+// Each name is used in one test only, because a warning is logged once per message.
+test('an unknown option name warns once and leaves the sorting as it was', () => {
+    const opts = 'zzzzz=no order=desc';
+    const warnings = warningsFrom(() => {
+        for (let pass = 0; pass < 2; pass++) {
+            assert.equal(sortKeepSortedBlocks(block('- a\n- b\n', opts)), block('- b\n- a\n', opts));
+        }
+    });
+    assert.deepEqual(warnings, ['Keep Sorted: zzzzz is not a keep-sorted option; it is ignored']);
+});
+
+test('a close misspelling of an option name suggests the option', () => {
+    const cases: [string, string][] = [['casee', 'case'], ['nummeric', 'numeric'], ['skip-lines', 'skip_lines'], ['Order', 'order'], ['colum', 'column']];
+    for (const [typo, option] of cases) {
+        const opts = `${typo}=yes`;
+        const warnings = warningsFrom(() =>
+            assert.equal(sortKeepSortedBlocks(block('- b\n- C\n- a\n', opts)), block('- C\n- a\n- b\n', opts)));
+        assert.deepEqual(warnings, [`Keep Sorted: ${typo} is not a keep-sorted option; it is ignored; did you mean ${option}?`]);
+    }
+});
+
+test('a name three edits from every option gets no suggestion', () => {
+    const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', 'frobnicate=yes')));
+    assert.equal(warnings.length, 1);
+    assert.ok(!warnings[0].includes('did you mean'), warnings[0]);
+});
+
+test('a Google keep-sorted option the plugin lacks says so, and is ignored', () => {
+    const opts = 'newline_separated=yes remove_duplicates=yes';
+    const warnings = warningsFrom(() =>
+        assert.equal(sortKeepSortedBlocks(block('- b\n- a\n- a\n', opts)), block('- a\n- a\n- b\n', opts)));
+    assert.deepEqual(warnings, [
+        'Keep Sorted: newline_separated is a Google keep-sorted option this plugin does not support; it is ignored',
+        'Keep Sorted: remove_duplicates is a Google keep-sorted option this plugin does not support; it is ignored',
+    ]);
+});
+
+test('every option the plugin handles is accepted without a warning', () => {
+    const opts = 'case=no order=desc numeric=yes skip_lines=0 group=no nested=yes key=text column=1 ignore_punctuation=yes';
+    const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', opts)));
+    // column= wants a table, so that one warning is expected and no other.
+    assert.deepEqual(warnings.filter(w => !w.includes('column')), []);
+});
+
+test('ignore_punctuation=yes is not an unknown option, and a misspelling of it suggests it', () => {
+    assert.deepEqual(warningsFrom(() => sortKeepSortedBlocks(block('- a\n', 'ignore_punctuation=yes'))), []);
+    const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', 'ignore_punctuaton=yes')));
+    assert.deepEqual(warnings, ['Keep Sorted: ignore_punctuaton is not a keep-sorted option; it is ignored; did you mean ignore_punctuation?']);
+});
+
+test('only name=value tokens in the options count: not a URL, a bare word or a quoted value', () => {
+    const opts = 'see https://example.com/page?id=7 and now column="a=b c=d" case=no';
+    const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', opts)));
+    assert.deepEqual(warnings.filter(w => w.includes('not a keep-sorted option')), []);
+});
+
+test('text after the end of the start marker is not read as options', () => {
+    const input = '%% keep-sorted start %% see ?q=1\n- b\n- a\n%% keep-sorted end %%';
+    const warnings = warningsFrom(() => assert.equal(sortKeepSortedBlocks(input), input));
+    assert.deepEqual(warnings, []);
+});
+
+test('the start markers in the README produce no warnings', () => {
+    const readme = readFileSync(new URL('./README.md', import.meta.url), 'utf8');
+    // Some README examples show a start marker alone, which the sorter leaves
+    // unread, so each marker is closed here to be parsed.
+    const starts = readme.split('\n').filter(line => /^\s*%%\s*keep-sorted\s+start\s+\S.*%%\s*$/.test(line));
+    assert.ok(starts.length >= 5, 'the README has start markers with options');
+    const warnings = warningsFrom(() => {
+        for (const start of starts) sortKeepSortedBlocks(`${start}\n- a\n%% keep-sorted end %%`);
+    });
+    assert.deepEqual(warnings.filter(w => w.includes('keep-sorted option')), []);
 });
 
 test('a block made by wrapInMarkers is found and sorted', () => {
