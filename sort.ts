@@ -45,8 +45,8 @@ const OPTION_NAMES: readonly string[] = [
 ];
 
 /** Google's keep-sorted options this plugin does not support, from the
- *  fields of blockOptions in keepsorted/options.go. The ones it does support
- *  are in OPTION_NAMES. */
+ *  fields of blockOptions in keepsorted/options.go, as of 11/27/2026. The ones
+ *  it does support are in OPTION_NAMES. */
 const UNSUPPORTED_GOOGLE_OPTION_NAMES: readonly string[] = [
     'allow_yaml_lists',
     'block',

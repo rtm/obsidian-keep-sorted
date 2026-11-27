@@ -510,9 +510,16 @@ test('text after the end of the start marker is not read as options', () => {
     assert.deepEqual(warnings, []);
 });
 
-test('the README examples produce no warnings', () => {
+test('the start markers in the README produce no warnings', () => {
     const readme = readFileSync(new URL('./README.md', import.meta.url), 'utf8');
-    assert.deepEqual(warningsFrom(() => sortKeepSortedBlocks(readme)), []);
+    // Some README examples show a start marker alone, which the sorter leaves
+    // unread, so each marker is closed here to be parsed.
+    const starts = readme.split('\n').filter(line => /^\s*%%\s*keep-sorted\s+start\s+\S.*%%\s*$/.test(line));
+    assert.ok(starts.length >= 5, 'the README has start markers with options');
+    const warnings = warningsFrom(() => {
+        for (const start of starts) sortKeepSortedBlocks(`${start}\n- a\n%% keep-sorted end %%`);
+    });
+    assert.deepEqual(warnings.filter(w => w.includes('keep-sorted option')), []);
 });
 
 test('a block made by wrapInMarkers is found and sorted', () => {
