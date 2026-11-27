@@ -131,10 +131,13 @@ function directed(cmp: number, order: SortOptions['order']): number {
     return order === 'desc' ? -cmp : cmp;
 }
 
+/** The options that decide what text a key is made of. */
+type KeyOptions = Pick<SortOptions, 'case' | 'numeric'>;
+
 /** The text a line sorts by: what the reader sees, lowercased when the case
  *  option is no. */
-function extractSortKey(line: string, keepCase: Flag): string {
-    return ignoreLeadingPunctuation(visibleText(line.replace(LIST_PREFIX, ''), keepCase).trim());
+function extractSortKey(line: string, options: KeyOptions): string {
+    return ignoreLeadingPunctuation(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim());
 }
 
 /** Text as the reader sees it: link syntax and formatting removed, and
@@ -212,7 +215,7 @@ function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
     const marked = KEY_COMMENT.exec(s)?.[2].trim() || SORT_KEY.exec(s)?.[2].trim();
     const rest = (box ? s.replace(CHECKBOX, '$1') : s).replace(KEY_COMMENT, '');
-    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(rest, options.case);
+    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(rest, options);
     return { rank: statusRank(box?.[2]), text };
 }
 
@@ -252,7 +255,7 @@ function findColumn(column: Column, header: string): { index: number } | { error
         if (column.position > count) return { error: `column=${column.position} is past the table's last column, ${count}` };
         return { index: column.position - 1 };
     }
-    const fold = (s: string) => extractSortKey(s, 'no');
+    const fold = (s: string) => extractSortKey(s, { case: 'no', numeric: false });
     const index = splitCells(header).map(fold).indexOf(fold(column.name));
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
 }
@@ -347,7 +350,7 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
     const keyed = rows.map(row => ({
         row,
         cell: itemKey(splitCells(row)[column] ?? '', options),
-        full: extractSortKey(row, options.case),
+        full: extractSortKey(row, options),
     }));
     // A cell of only a checkbox is not empty: its status is its content.
     const isEmpty = (k: ItemKey) => k.rank === NO_CHECKBOX && k.text === '';
