@@ -7,6 +7,7 @@ type SortKey = 'text' | 'task-status';
 
 // Options follow google/keep-sorted (https://github.com/google/keep-sorted):
 // the same names, values and defaults, so a block behaves the same in both.
+// The one default the user can change is `case`, by a plugin setting.
 interface SortOptions {
     case: Flag;
     order: 'asc' | 'desc';
@@ -34,25 +35,37 @@ type SkipLines = { head?: number; tail: number };
 /** A column named by its 1-based position or by its header text. */
 type Column = { position: number } | { name: string };
 
-function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text', ignorePunctuation: 'no' };
+function parseOptions(str: string, defaultCase: Flag): SortOptions {
+    const opts: SortOptions = { case: defaultCase, order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text', ignorePunctuation: 'no' };
     // A value with spaces, such as a header name, is written in double quotes.
     for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
         // An unterminated quote is taken literally, so the warning shows what was written.
         const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
         const val = quoted ? raw.slice(1, -1) : raw;
-        if (key === 'case') opts.case = val as Flag;
-        else if (key === 'order') opts.order = val as 'asc' | 'desc';
-        else if (key === 'numeric') opts.numeric = val === 'yes';
+        if (key === 'case') opts.case = parseChoice(key, val, FLAG_VALUES, opts.case);
+        else if (key === 'order') opts.order = parseChoice(key, val, ORDER_VALUES, opts.order);
+        else if (key === 'numeric') opts.numeric = parseChoice(key, val, FLAG_VALUES, opts.numeric ? 'yes' : 'no') === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
-        else if (key === 'group') opts.group = val as Flag;
-        else if (key === 'nested') opts.nested = val as Flag;
+        else if (key === 'group') opts.group = parseChoice(key, val, FLAG_VALUES, opts.group);
+        else if (key === 'nested') opts.nested = parseChoice(key, val, FLAG_VALUES, opts.nested);
         else if (key === 'key') opts.key = parseKey(val);
-        else if (key === 'ignore_punctuation') opts.ignorePunctuation = parseIgnorePunctuation(val);
+        else if (key === 'ignore_punctuation') opts.ignorePunctuation = parseChoice(key, val, FLAG_VALUES, opts.ignorePunctuation);
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
     return opts;
+}
+
+const FLAG_VALUES: readonly Flag[] = ['yes', 'no'];
+const ORDER_VALUES: readonly SortOptions['order'][] = ['asc', 'desc'];
+
+/** A value that is not one of the allowed ones warns and leaves the option as it
+ *  was, so a typo such as case=yess does not pass for its opposite. */
+function parseChoice<T extends string>(name: string, val: string, allowed: readonly T[], fallback: T): T {
+    const choice = allowed.find(a => a === val);
+    if (choice !== undefined) return choice;
+    warnOnce(`${name}=${val} is not ${allowed.join(' or ')}; ${name}=${fallback} is kept`);
+    return fallback;
 }
 
 /** A value that is not a sort key warns and sorts by text, so a typo does
@@ -61,15 +74,6 @@ function parseKey(val: string): SortKey {
     if (val === 'text' || val === 'task-status') return val;
     warnOnce(`key=${val} is not a sort key; the block is sorted by text`);
     return 'text';
-}
-
-/** A value that is not yes or no warns and leaves punctuation in, as if the
- *  option were not given, so a typo does not pass for the feature doing
- *  nothing. */
-function parseIgnorePunctuation(val: string): Flag {
-    if (val === 'yes' || val === 'no') return val;
-    warnOnce(`ignore_punctuation=${val} is not yes or no; punctuation is not ignored`);
-    return 'no';
 }
 
 /** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
@@ -100,7 +104,8 @@ function ordinal(x: string, y: string): number {
 }
 
 /** Compares by character, as google/keep-sorted does, rather than by locale,
- *  so uppercase sorts before lowercase. With numeric, runs of digits compare
+ *  so uppercase sorts before lowercase (unless case=no folds the keys first).
+ *  With numeric, runs of digits compare
  *  by value: PROGRESS_5 before PROGRESS_10. */
 function compareKeys(a: string, b: string, numeric: boolean): number {
     if (!numeric) return ordinal(a, b);
@@ -528,7 +533,7 @@ function findBlockEnd(lines: string[], from: number): number {
 /** Sorts every block in the lines. A block inside another is sorted first,
  *  and then moves with the item it is indented under when the outer block
  *  is sorted. A start marker with no end marker leaves the rest untouched. */
-function sortBlocksIn(lines: string[]): string[] {
+function sortBlocksIn(lines: string[], defaultCase: Flag): string[] {
     const out: string[] = [];
     for (let i = 0; i < lines.length; i++) {
         const start = START_MARKER.exec(lines[i]);
@@ -541,13 +546,21 @@ function sortBlocksIn(lines: string[]): string[] {
             out.push(lines[i]);
             continue;
         }
-        const body = sortBlocksIn(lines.slice(i + 1, end));
-        out.push(lines[i], ...sortBlock(body, parseOptions(start[1])), lines[end]);
+        const body = sortBlocksIn(lines.slice(i + 1, end), defaultCase);
+        out.push(lines[i], ...sortBlock(body, parseOptions(start[1], defaultCase)), lines[end]);
         i = end;
     }
     return out;
 }
 
-export function sortKeepSortedBlocks(content: string): string {
-    return sortBlocksIn(content.split('\n')).join('\n');
+/** The `case` a block gets when it gives none, for the plugin's "Ignore case
+ *  by default" setting. */
+export function caseForSetting(ignoreCase: boolean): Flag {
+    return ignoreCase ? 'no' : 'yes';
+}
+
+/** Sorts every block in the content. defaultCase is the `case` of a block
+ *  that does not give one; google/keep-sorted's default is yes. */
+export function sortKeepSortedBlocks(content: string, defaultCase: Flag = 'yes'): string {
+    return sortBlocksIn(content.split('\n'), defaultCase).join('\n');
 }

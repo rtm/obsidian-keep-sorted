@@ -116,7 +116,7 @@ Options can be added to the start marker:
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `order` | `asc`, `desc` | `asc` | Sort direction |
-| `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
+| `case` | `yes`, `no` | `yes`, or `no` with the setting | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. The plugin setting "Ignore case by default" makes `no` the default for blocks that give no `case`; an explicit `case=yes` or `case=no` always wins. The setting is stored per device, so keep it the same on every device that shares a vault. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10. With `column`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value instead. |
 | `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
 | `nested` | `yes`, `no` | `no` | Also sort the items under each item, at every level, so one pair of markers sorts a whole outline. Has no effect with `group=no`, which leaves nothing under an item. Not in Google's keep-sorted. |
@@ -125,7 +125,9 @@ Options can be added to the start marker:
 | `ignore_punctuation` | `yes`, `no` | `no` | Leave punctuation out of the sort keys, in any script: every character Unicode gives General Category P, so `“Paper”`, `(Paper)` and `Paper` sort alike. See Sort key extraction. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column`, `key` and `ignore_punctuation`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation, sort by their character codes unless `ignore_punctuation=yes`. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+A value that is not one of those listed for `order`, `case`, `numeric`, `group`, `nested`, `key` or `ignore_punctuation` is ignored: the option is left as it was, which is its default unless the option is repeated, and a warning is logged in the developer console.
+
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column`, `key` and `ignore_punctuation`, which it does not have, and the default for `case` once you turn on the "Ignore case by default" setting. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation, sort by their character codes unless `ignore_punctuation=yes`. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 
