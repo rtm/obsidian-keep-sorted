@@ -21,31 +21,34 @@ const sortedItems = (items: string[]) =>
     sortKeepSortedBlocks(block(items.map(i => `- ${i}\n`).join(''))).split('\n').slice(1, -1).map(l => l.slice(2));
 
 test('leading punctuation is ignored in every script, by Unicode category', () => {
-    const cases: [string, string[]][] = [
-        ['Latin', ['«Zeta»', '¡Alpha!', '¿Mu?', '(Beta)']],
-        ['Greek', ['«Ωμέγα»', '·Άλφα', ';Βήτα']],
-        ['Cyrillic', ['—Яблоко', '„Арбуз“', '«Банан»']],
-        ['Arabic', ['،جمل', '«باب»', 'أسد']],
-        ['Japanese', ['「ほげ」', '『あいう』', '〜うえお', '、かきく', '・さしす']],
-        ['fullwidth forms', ['！ほげ', '（あいう）', '＂うえお＂', '＃かきく', '－さしす']],
+    // Each pair is the input and the order it sorts into, by the words after the punctuation.
+    const cases: [string, string[], string[]][] = [
+        ['Latin', ['«Zeta»', '¡Alpha!', '¿Mu?', '(Beta)'], ['¡Alpha!', '(Beta)', '¿Mu?', '«Zeta»']],
+        ['Greek', ['«Ωμέγα»', ';Βήτα', '·Άλφα'], ['·Άλφα', ';Βήτα', '«Ωμέγα»']],
+        ['Cyrillic', ['—Яблоко', '«Банан»', '„Арбуз“'], ['„Арбуз“', '«Банан»', '—Яблоко']],
+        ['Arabic', ['،جمل', '«باب»', 'أسد'], ['أسد', '«باب»', '،جمل']],
+        ['Japanese', ['「ほげ」', '『あいう』', '〜うえお', '、かきく', '・さしす'], ['『あいう』', '〜うえお', '、かきく', '・さしす', '「ほげ」']],
+        ['fullwidth forms', ['！ほげ', '（あいう）', '＂うえお＂', '＃かきく', '－さしす'], ['（あいう）', '＂うえお＂', '＃かきく', '－さしす', '！ほげ']],
     ];
-    for (const [script, items] of cases) {
-        const sorted = sortedItems(items);
-        const key = (s: string) => s.replace(/^[\s\p{P}]+/u, '');
-        assert.deepEqual(sorted.map(key), sorted.map(key).sort(), script);
-        assert.equal(new Set(sorted).size, items.length, script);
+    for (const [script, input, expected] of cases) {
+        assert.deepEqual(sortedItems(input), expected, script);
     }
 });
 
-test('every character Unicode gives category P is ignored when it leads', () => {
+test('every character Unicode gives category P is ignored when it leads, in a list and in a table cell', () => {
     const notIgnored: string[] = [];
     for (let cp = 0; cp <= 0x10ffff; cp++) {
         if (cp >= 0xd800 && cp <= 0xdfff) continue;
         const ch = String.fromCodePoint(cp);
-        if (!/^\p{P}$/u.test(ch)) continue;
-        // c would sort after, and a before, the punctuation if it were part of the key.
-        const sorted = sortedItems([`${ch}b`, 'c', 'a']);
-        if (sorted.join() !== ['a', `${ch}b`, 'c'].join()) notIgnored.push(`U+${cp.toString(16).toUpperCase()}`);
+        // * and _ are formatting, which is removed before punctuation is considered.
+        if (!/^\p{P}$/u.test(ch) || ch === '*' || ch === '_') continue;
+        // c sorts after, and a before, the punctuation if it were part of the key.
+        const inList = sortedItems([`${ch}b`, 'c', 'a']);
+        const table = block(`| Name |\n| --- |\n| ${ch}b |\n| c |\n| a |\n`, 'column=Name');
+        const inCell = sortKeepSortedBlocks(table).split('\n').slice(3, 6);
+        if (inList.join() !== ['a', `${ch}b`, 'c'].join() || inCell.join() !== ['| a |', `| ${ch}b |`, '| c |'].join()) {
+            notIgnored.push(`U+${cp.toString(16).toUpperCase()}`);
+        }
     }
     assert.deepEqual(notIgnored, []);
 });
