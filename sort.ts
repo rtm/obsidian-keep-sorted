@@ -7,6 +7,7 @@ type SortKey = 'text' | 'task-status';
 
 // Options follow google/keep-sorted (https://github.com/google/keep-sorted):
 // the same names, values and defaults, so a block behaves the same in both.
+// The one default the user can change is `case`, by a plugin setting.
 interface SortOptions {
     case: Flag;
     order: 'asc' | 'desc';
@@ -31,8 +32,8 @@ type SkipLines = { head?: number; tail: number };
 /** A column named by its 1-based position or by its header text. */
 type Column = { position: number } | { name: string };
 
-function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text' };
+function parseOptions(str: string, defaultCase: Flag): SortOptions {
+    const opts: SortOptions = { case: defaultCase, order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text' };
     // A value with spaces, such as a header name, is written in double quotes.
     for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
         // An unterminated quote is taken literally, so the warning shows what was written.
@@ -99,7 +100,8 @@ function ordinal(x: string, y: string): number {
 }
 
 /** Compares by character, as google/keep-sorted does, rather than by locale,
- *  so uppercase sorts before lowercase. With numeric, runs of digits compare
+ *  so uppercase sorts before lowercase (unless case=no folds the keys first).
+ *  With numeric, runs of digits compare
  *  by value: PROGRESS_5 before PROGRESS_10. */
 function compareKeys(a: string, b: string, numeric: boolean): number {
     if (!numeric) return ordinal(a, b);
@@ -488,7 +490,7 @@ function findBlockEnd(lines: string[], from: number): number {
 /** Sorts every block in the lines. A block inside another is sorted first,
  *  and then moves with the item it is indented under when the outer block
  *  is sorted. A start marker with no end marker leaves the rest untouched. */
-function sortBlocksIn(lines: string[]): string[] {
+function sortBlocksIn(lines: string[], defaultCase: Flag): string[] {
     const out: string[] = [];
     for (let i = 0; i < lines.length; i++) {
         const start = START_MARKER.exec(lines[i]);
@@ -501,13 +503,21 @@ function sortBlocksIn(lines: string[]): string[] {
             out.push(lines[i]);
             continue;
         }
-        const body = sortBlocksIn(lines.slice(i + 1, end));
-        out.push(lines[i], ...sortBlock(body, parseOptions(start[1])), lines[end]);
+        const body = sortBlocksIn(lines.slice(i + 1, end), defaultCase);
+        out.push(lines[i], ...sortBlock(body, parseOptions(start[1], defaultCase)), lines[end]);
         i = end;
     }
     return out;
 }
 
-export function sortKeepSortedBlocks(content: string): string {
-    return sortBlocksIn(content.split('\n')).join('\n');
+/** The `case` a block gets when it gives none, for the plugin's "Ignore case
+ *  by default" setting. */
+export function caseForSetting(ignoreCase: boolean): Flag {
+    return ignoreCase ? 'no' : 'yes';
+}
+
+/** Sorts every block in the content. defaultCase is the `case` of a block
+ *  that does not give one; google/keep-sorted's default is yes. */
+export function sortKeepSortedBlocks(content: string, defaultCase: Flag = 'yes'): string {
+    return sortBlocksIn(content.split('\n'), defaultCase).join('\n');
 }

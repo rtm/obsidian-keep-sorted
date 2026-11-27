@@ -1,6 +1,6 @@
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
+import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
@@ -107,6 +107,42 @@ test('sorting is case-sensitive by default, uppercase first', () => {
 test('case=no sorts case-insensitively', () => {
     const opts = 'case=no';
     assert.equal(sortKeepSortedBlocks(block('- Bravo\n- alpha\n- Delta\n- charlie\n', opts)), block('- alpha\n- Bravo\n- charlie\n- Delta\n', opts));
+});
+
+test('with no case option and the default off, Zebra sorts before apple', () => {
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n'), 'yes'), block('- Zebra\n- apple\n'));
+});
+
+test('with no case option and the default on, apple sorts before Zebra', () => {
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n'), 'no'), block('- apple\n- Zebra\n'));
+});
+
+test('an explicit case=yes beats a default of no', () => {
+    const opts = 'case=yes';
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'no'), block('- Zebra\n- apple\n', opts));
+});
+
+test('an explicit case=no beats a default of yes', () => {
+    const opts = 'case=no';
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'yes'), block('- apple\n- Zebra\n', opts));
+});
+
+test('the setting maps to the default case', () => {
+    assert.equal(caseForSetting(false), 'yes');
+    assert.equal(caseForSetting(true), 'no');
+});
+
+test('a default of no reaches nested blocks, table columns and task text', () => {
+    const inner = (items: string) => `    %% keep-sorted start %%\n${items}    %% keep-sorted end %%\n`;
+    assert.equal(
+        sortKeepSortedBlocks(block(`- b\n${inner('    - Zebra\n    - apple\n')}- a\n`), 'no'),
+        block(`- a\n- b\n${inner('    - apple\n    - Zebra\n')}`));
+
+    const table = (rows: string) => block(`| Name | Note |\n| --- | --- |\n${rows}`, 'column=Name');
+    assert.equal(sortKeepSortedBlocks(table('| Zebra | 1 |\n| apple | 2 |\n'), 'no'), table('| apple | 2 |\n| Zebra | 1 |\n'));
+
+    const tasks = (items: string) => block(items, 'key=task-status');
+    assert.equal(sortKeepSortedBlocks(tasks('- [ ] Zebra\n- [ ] apple\n'), 'no'), tasks('- [ ] apple\n- [ ] Zebra\n'));
 });
 
 test('numeric=yes compares runs of digits by value', () => {
@@ -431,6 +467,17 @@ for (const { name, input, sorted, fallback, bad } of choiceOptions) {
         }
     });
 }
+
+test('a case value that is not yes or no falls back to the configured default, not to yes', () => {
+    const opts = 'case=maybe';
+    const warnings = warningsFrom(() => {
+        assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'no'), block('- apple\n- Zebra\n', opts));
+        assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'yes'), block('- Zebra\n- apple\n', opts));
+    });
+    assert.equal(warnings.length, 2);
+    assert.ok(warnings[0].includes('case=no is kept'), warnings[0]);
+    assert.ok(warnings[1].includes('case=yes is kept'), warnings[1]);
+});
 
 test('a bad value on a repeated option keeps the earlier value', () => {
     const opts = 'numeric=yes numeric=bogus case=no case=bogus2';
