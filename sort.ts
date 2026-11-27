@@ -135,9 +135,9 @@ function directed(cmp: number, order: SortOptions['order']): number {
 type KeyOptions = Pick<SortOptions, 'case' | 'numeric'>;
 
 /** The text a line sorts by: what the reader sees, lowercased when the case
- *  option is no. */
+ *  option is no, and without punctuation. */
 function extractSortKey(line: string, options: KeyOptions): string {
-    return ignoreLeadingPunctuation(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim());
+    return ignorePunctuation(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim(), options);
 }
 
 /** Text as the reader sees it: link syntax and formatting removed, and
@@ -153,15 +153,25 @@ function visibleText(text: string, keepCase: Flag): string {
     return keepCase !== 'yes' ? s.toLowerCase() : s;
 }
 
-/** Punctuation in front of a name is not part of it: “Paper” and (Paper) sort
- *  as Paper, not ahead of or after every letter. Three things keep theirs: a
- *  number its sign, a task its checkbox, so checked and unchecked tasks stay
- *  apart, and a key of nothing but punctuation, so a dash placeholder still
- *  sorts as a dash rather than as an empty cell. */
-function ignoreLeadingPunctuation(s: string): string {
-    if (parseNumber(s) !== undefined || /^\[[ x]\]/i.test(s)) return s;
-    const name = s.replace(/^[\s\p{P}]+/u, '');
-    return name === '' ? s : name;
+/** Punctuation is not part of a name, wherever it stands and in any script:
+ *  every character Unicode gives General Category P is dropped, so “Paper”,
+ *  (Paper) and Paper sort alike, as do Dr. Smith and Dr Smith. Symbols (category
+ *  S, such as $ + ~) are not punctuation and stay. The words left are joined
+ *  by single spaces, so dropping a dash between two spaces leaves no gap.
+ *  Three things keep theirs: a number its sign and separators, a task its
+ *  checkbox, so checked and unchecked tasks stay apart, and a key of nothing
+ *  but punctuation, so a dash placeholder still sorts as a dash rather than
+ *  as an empty cell. With numeric, punctuation between two digits stays too,
+ *  so 1.2.10 compares as the runs 1, 2 and 10 rather than as the number 1210. */
+function ignorePunctuation(s: string, options: KeyOptions): string {
+    if (parseNumber(s) !== undefined) return s;
+    const box = /^\[[ x]\]/i.exec(s)?.[0] ?? '';
+    const rest = s.slice(box.length);
+    const name = rest
+        .replace(/\p{P}+/gu, (run, at: number) => options.numeric && /\d/.test(rest[at - 1] ?? '') && /\d/.test(rest[at + run.length] ?? '') ? run : '')
+        .replace(/\s+/g, ' ').trim();
+    if (name === '') return s;
+    return box === '' ? name : `${box} ${name}`;
 }
 
 /** A list item's prefix: indent, "-", "*", "+" or "N.", and the space after. */
@@ -215,7 +225,7 @@ function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
     const marked = KEY_COMMENT.exec(s)?.[2].trim() || SORT_KEY.exec(s)?.[2].trim();
     const rest = (box ? s.replace(CHECKBOX, '$1') : s).replace(KEY_COMMENT, '');
-    const text = marked ? visibleText(marked, options.case).trim() : extractSortKey(rest, options);
+    const text = marked ? ignorePunctuation(visibleText(marked, options.case).trim(), options) : extractSortKey(rest, options);
     return { rank: statusRank(box?.[2]), text };
 }
 

@@ -41,7 +41,7 @@ When the part of an item that should decide its place is in the middle of the li
 %% keep-sorted end %%
 ```
 
-The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and the leading punctuation a plain item would skip is kept. `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
+The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and punctuation, which is ignored as in any item text (see Sort key extraction). `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
 
 When the key cannot be wrapped, because the name sits inside a link, where a comment would break it, or is not on the line at all, give it in one comment instead:
 
@@ -124,7 +124,7 @@ Options can be added to the start marker:
 | `key` | `text`, `task-status` | `text` | What an item sorts by: its text, or its checkbox first and then its text. With `column`, the checkbox in that column's cell. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column` and `key`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation inside a name, sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column` and `key`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax, formatting or punctuation; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 
@@ -135,7 +135,7 @@ Sort keys are derived by stripping the following from each line:
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
 - Everything but the key, on an item that carries a `keep-sorted-key` comment or `start-key` and `end-key` markers; a `keep-sorted-key` comment with nothing in it is dropped
-- Punctuation at the front of what is left: `“Paper”` and `(Paper)` both sort as `Paper`. A number keeps its sign, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is.
+- Punctuation, wherever it stands in what is left and in any script: every character Unicode gives General Category P is dropped, so `“Paper”`, `(Paper)` and `Paper` sort alike, as do `Dr. Smith` and `Dr Smith`, and `well-known` sorts as `wellknown`. Symbols, such as `$`, `+`, `~` and `〒`, are not punctuation and stay. This applies to explicit keys too (inline keys, `keep-sorted-key` comments and table cells), and to the text after a checkbox. Runs of spaces left behind become one. A number keeps its sign and separators, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is. With `numeric=yes`, punctuation between two digits stays, so `1.2.10` sorts before `1.10.2`. Items whose keys are the same once punctuation is gone, such as `Dr.` and `Dr`, keep the order they had.
 
 Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
 
