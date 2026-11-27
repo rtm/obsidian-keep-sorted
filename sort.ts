@@ -131,13 +131,10 @@ function directed(cmp: number, order: SortOptions['order']): number {
     return order === 'desc' ? -cmp : cmp;
 }
 
-/** The options that decide what text a key is made of. */
-type KeyOptions = Pick<SortOptions, 'case' | 'numeric'>;
-
 /** The text a line sorts by: what the reader sees, lowercased when the case
  *  option is no, and without punctuation. */
-function extractSortKey(line: string, options: KeyOptions): string {
-    return ignorePunctuation(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim(), options);
+function extractSortKey(line: string, keepCase: Flag): string {
+    return ignorePunctuation(visibleText(line.replace(LIST_PREFIX, ''), keepCase).trim());
 }
 
 /** Text as the reader sees it: link syntax and formatting removed, and
@@ -164,7 +161,7 @@ function visibleText(text: string, keepCase: Flag): string {
  *  as an empty cell. Punctuation between two digits stays too, whatever the
  *  numeric option: dropping the dots would fuse 1.9 into 19, which sorts
  *  after 10.0 as 100, and 1.2.10 into 1210. */
-function ignorePunctuation(s: string, options: KeyOptions): string {
+function ignorePunctuation(s: string): string {
     if (parseNumber(s) !== undefined) return s;
     const box = /^\[[ x]\]/i.exec(s)?.[0] ?? '';
     const rest = s.slice(box.length);
@@ -226,7 +223,7 @@ function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
     const marked = KEY_COMMENT.exec(s)?.[2].trim() || SORT_KEY.exec(s)?.[2].trim();
     const rest = (box ? s.replace(CHECKBOX, '$1') : s).replace(KEY_COMMENT, '');
-    const text = marked ? ignorePunctuation(visibleText(marked, options.case).trim(), options) : extractSortKey(rest, options);
+    const text = marked ? ignorePunctuation(visibleText(marked, options.case).trim()) : extractSortKey(rest, options.case);
     return { rank: statusRank(box?.[2]), text };
 }
 
@@ -270,7 +267,7 @@ function findColumn(column: Column, header: string): { index: number } | { error
     // Headers that differ only in punctuation (Q1 and Q1.) are told apart by
     // an exact match, ignoring case and formatting, before the looser one.
     const exact = (s: string) => visibleText(s, 'no').trim();
-    const loose = (s: string) => extractSortKey(s, { case: 'no', numeric: false });
+    const loose = (s: string) => extractSortKey(s, 'no');
     let index = headers.map(exact).indexOf(exact(column.name));
     if (index < 0) index = headers.map(loose).indexOf(loose(column.name));
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
@@ -367,7 +364,7 @@ function sortRows(rows: string[], options: SortOptions, column: number): string[
     const keyed = rows.map(row => ({
         row,
         cell: itemKey(splitCells(row)[column] ?? '', options),
-        full: extractSortKey(row, options),
+        full: extractSortKey(row, options.case),
     }));
     // A cell of only a checkbox is not empty: its status is its content.
     const isEmpty = (k: ItemKey) => k.rank === NO_CHECKBOX && k.text === '';
