@@ -31,10 +31,49 @@ type SkipLines = { head?: number; tail: number };
 /** A column named by its 1-based position or by its header text. */
 type Column = { position: number } | { name: string };
 
+/** The options parseOptions handles. A name added here needs its branch in
+ *  parseOptions, and is then no longer warned about. */
+const OPTION_NAMES: readonly string[] = [
+    'case',
+    'order',
+    'numeric',
+    'skip_lines',
+    'group',
+    'nested',
+    'key',
+    'column',
+];
+
+/** Google's keep-sorted options this plugin does not support, from the
+ *  fields of blockOptions in keepsorted/options.go. The ones it does support
+ *  are in OPTION_NAMES. */
+const UNSUPPORTED_GOOGLE_OPTION_NAMES: readonly string[] = [
+    'allow_yaml_lists',
+    'block',
+    'by_regex',
+    'group_end_regex',
+    'group_prefixes',
+    'group_start_regex',
+    'ignore_prefixes',
+    'newline_separated',
+    'prefix_order',
+    'remove_duplicates',
+    'sticky_comments',
+    'sticky_prefixes',
+];
+
+/** A name=value pair in the options of a start marker. It begins a token, so
+ *  the = in a URL or in the middle of some other word is not a pair. */
+const OPTION_PAIR = /(?<!\S)([\w-]+)=("[^"]*"|\S+)/g;
+
 function parseOptions(str: string): SortOptions {
     const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text' };
     // A value with spaces, such as a header name, is written in double quotes.
-    for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
+    for (const [, key, raw] of str.matchAll(OPTION_PAIR)) {
+        if (!OPTION_NAMES.includes(key)) {
+            warnUnknownOption(key);
+            continue;
+        }
         // An unterminated quote is taken literally, so the warning shows what was written.
         const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
         const val = quoted ? raw.slice(1, -1) : raw;
@@ -53,6 +92,35 @@ function parseOptions(str: string): SortOptions {
 
 const FLAG_VALUES: readonly Flag[] = ['yes', 'no'];
 const ORDER_VALUES: readonly SortOptions['order'][] = ['asc', 'desc'];
+
+/** A name that is not an option warns and is ignored, so a typo such as
+ *  casee=no does not pass for the option doing nothing. */
+function warnUnknownOption(name: string): void {
+    if (UNSUPPORTED_GOOGLE_OPTION_NAMES.includes(name)) {
+        warnOnce(`${name} is a Google keep-sorted option this plugin does not support; it is ignored`);
+        return;
+    }
+    const nearest = OPTION_NAMES
+        .map(option => ({ option, distance: editDistance(name.toLowerCase(), option) }))
+        .filter(({ distance }) => distance <= 2)
+        .sort((a, b) => a.distance - b.distance)[0];
+    const hint = nearest ? `; did you mean ${nearest.option}?` : '';
+    warnOnce(`${name} is not a keep-sorted option; it is ignored${hint}`);
+}
+
+/** The fewest single-character insertions, deletions and substitutions that
+ *  turn one string into the other. */
+function editDistance(a: string, b: string): number {
+    let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const row = [i];
+        for (let j = 1; j <= b.length; j++) {
+            row[j] = Math.min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+        previous = row;
+    }
+    return previous[b.length];
+}
 
 /** A value that is not one of the allowed ones warns and leaves the option as it
  *  was, so a typo such as case=yess does not pass for its opposite. */
