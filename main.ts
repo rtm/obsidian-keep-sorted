@@ -1,4 +1,4 @@
-import { App, Editor, Modal, Notice, Plugin, Setting, TFile } from 'obsidian';
+import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
@@ -6,7 +6,16 @@ import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, 
  *  typed; waiting for a pause avoids that. */
 const QUIET_PERIOD_MS = 5000;
 
+interface KeepSortedSettings {
+    /** Sort blocks that give no `case=` ignoring case. Off matches
+     *  google/keep-sorted, where the default is case=yes. */
+    ignoreCaseByDefault: boolean;
+}
+
+const DEFAULT_SETTINGS: KeepSortedSettings = { ignoreCaseByDefault: false };
+
 export default class KeepSortedPlugin extends Plugin {
+    settings: KeepSortedSettings = { ...DEFAULT_SETTINGS };
     /** Files being sorted now. Their own write fires a modify event, which is
      *  ignored rather than scheduling another pass. */
     private processing = new Set<TFile>();
@@ -15,6 +24,9 @@ export default class KeepSortedPlugin extends Plugin {
     private pending = new Map<TFile, number>();
 
     async onload() {
+        this.settings = { ...DEFAULT_SETTINGS, ...(await this.loadData()) };
+        this.addSettingTab(new KeepSortedSettingTab(this.app, this));
+
         this.registerEvent(this.app.vault.on('modify', (file) => {
             if (!(file instanceof TFile) || file.extension !== 'md') return;
             if (this.processing.has(file)) return;
@@ -109,7 +121,8 @@ export default class KeepSortedPlugin extends Plugin {
             if (!(await this.app.vault.cachedRead(file)).includes('keep-sorted')) return;
             // process() reads and writes atomically, so text saved between a
             // separate read and write cannot be overwritten.
-            await this.app.vault.process(file, sortKeepSortedBlocks);
+            await this.app.vault.process(file, (content) =>
+                sortKeepSortedBlocks(content, this.settings.ignoreCaseByDefault ? 'no' : 'yes'));
         } catch (e) {
             console.error(`Keep Sorted: failed to sort ${file.path}`, e);
             new Notice(`Keep Sorted: failed to sort ${file.path}`);
@@ -122,6 +135,25 @@ export default class KeepSortedPlugin extends Plugin {
         for (const file of this.app.vault.getMarkdownFiles()) {
             await this.sortFile(file);
         }
+    }
+}
+
+class KeepSortedSettingTab extends PluginSettingTab {
+    constructor(app: App, private plugin: KeepSortedPlugin) {
+        super(app, plugin);
+    }
+
+    display() {
+        this.containerEl.empty();
+        new Setting(this.containerEl)
+            .setName('Ignore case by default')
+            .setDesc("Sort blocks that have no case option without regard to case, so apple comes before Zebra. A case=yes or case=no on a block always wins. Off matches Google's keep-sorted, where uppercase sorts before lowercase.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.ignoreCaseByDefault)
+                .onChange(async (value) => {
+                    this.plugin.settings.ignoreCaseByDefault = value;
+                    await this.plugin.saveData(this.plugin.settings);
+                }));
     }
 }
 

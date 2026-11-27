@@ -109,6 +109,37 @@ test('case=no sorts case-insensitively', () => {
     assert.equal(sortKeepSortedBlocks(block('- Bravo\n- alpha\n- Delta\n- charlie\n', opts)), block('- alpha\n- Bravo\n- charlie\n- Delta\n', opts));
 });
 
+test('with no case option and the default off, Zebra sorts before apple', () => {
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n'), 'yes'), block('- Zebra\n- apple\n'));
+});
+
+test('with no case option and the default on, apple sorts before Zebra', () => {
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n'), 'no'), block('- apple\n- Zebra\n'));
+});
+
+test('an explicit case=yes beats a default of no', () => {
+    const opts = 'case=yes';
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'no'), block('- Zebra\n- apple\n', opts));
+});
+
+test('an explicit case=no beats a default of yes', () => {
+    const opts = 'case=no';
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'yes'), block('- apple\n- Zebra\n', opts));
+});
+
+test('a default of no reaches nested blocks, table columns and task text', () => {
+    const inner = (items: string) => `    %% keep-sorted start %%\n${items}    %% keep-sorted end %%\n`;
+    assert.equal(
+        sortKeepSortedBlocks(block(`- b\n${inner('    - Zebra\n    - apple\n')}- a\n`), 'no'),
+        block(`- a\n- b\n${inner('    - apple\n    - Zebra\n')}`));
+
+    const table = (rows: string) => block(`| Name | Note |\n| --- | --- |\n${rows}`, 'column=Name');
+    assert.equal(sortKeepSortedBlocks(table('| Zebra | 1 |\n| apple | 2 |\n'), 'no'), table('| apple | 2 |\n| Zebra | 1 |\n'));
+
+    const tasks = (items: string) => block(items, 'key=task-status');
+    assert.equal(sortKeepSortedBlocks(tasks('- [ ] Zebra\n- [ ] apple\n'), 'no'), tasks('- [ ] apple\n- [ ] Zebra\n'));
+});
+
 test('numeric=yes compares runs of digits by value', () => {
     const opts = 'numeric=yes';
     const input = block('- PROGRESS_100\n- PROGRESS_10\n- PROGRESS_1\n- PROGRESS_50\n- PROGRESS_5\n', opts);
