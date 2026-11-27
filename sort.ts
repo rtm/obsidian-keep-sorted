@@ -38,17 +38,29 @@ function parseOptions(str: string): SortOptions {
         // An unterminated quote is taken literally, so the warning shows what was written.
         const quoted = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
         const val = quoted ? raw.slice(1, -1) : raw;
-        if (key === 'case') opts.case = val as Flag;
-        else if (key === 'order') opts.order = val as 'asc' | 'desc';
-        else if (key === 'numeric') opts.numeric = val === 'yes';
+        if (key === 'case') opts.case = parseChoice(key, val, FLAG_VALUES, opts.case);
+        else if (key === 'order') opts.order = parseChoice(key, val, ORDER_VALUES, opts.order);
+        else if (key === 'numeric') opts.numeric = parseChoice(key, val, FLAG_VALUES, 'no') === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
-        else if (key === 'group') opts.group = val as Flag;
-        else if (key === 'nested') opts.nested = val as Flag;
+        else if (key === 'group') opts.group = parseChoice(key, val, FLAG_VALUES, opts.group);
+        else if (key === 'nested') opts.nested = parseChoice(key, val, FLAG_VALUES, opts.nested);
         else if (key === 'key') opts.key = parseKey(val);
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
     return opts;
+}
+
+const FLAG_VALUES: readonly Flag[] = ['yes', 'no'];
+const ORDER_VALUES: readonly SortOptions['order'][] = ['asc', 'desc'];
+
+/** A value that is not one of the allowed ones warns and keeps the option's
+ *  default, so a typo such as case=yess does not pass for its opposite. */
+function parseChoice<T extends string>(name: string, val: string, allowed: readonly T[], fallback: T): T {
+    const choice = allowed.find(a => a === val);
+    if (choice !== undefined) return choice;
+    warnOnce(`${name}=${val} is not ${allowed.join(' or ')}; the default ${name}=${fallback} is used`);
+    return fallback;
 }
 
 /** A value that is not a sort key warns and sorts by text, so a typo does
