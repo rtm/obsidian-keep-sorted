@@ -7,6 +7,7 @@ type SortKey = 'text' | 'task-status';
 
 // Options follow google/keep-sorted (https://github.com/google/keep-sorted):
 // the same names, values and defaults, so a block behaves the same in both.
+// The one default the user can change is `case`, by a plugin setting.
 interface SortOptions {
     case: Flag;
     order: 'asc' | 'desc';
@@ -87,7 +88,8 @@ function ordinal(x: string, y: string): number {
 }
 
 /** Compares by character, as google/keep-sorted does, rather than by locale,
- *  so uppercase sorts before lowercase. With numeric, runs of digits compare
+ *  so uppercase sorts before lowercase (unless case=no folds the keys first).
+ *  With numeric, runs of digits compare
  *  by value: PROGRESS_5 before PROGRESS_10. */
 function compareKeys(a: string, b: string, numeric: boolean): number {
     if (!numeric) return ordinal(a, b);
@@ -494,6 +496,12 @@ function sortBlocksIn(lines: string[], defaultCase: Flag): string[] {
         i = end;
     }
     return out;
+}
+
+/** The `case` a block gets when it gives none, for the plugin's "Ignore case
+ *  by default" setting. */
+export function caseForSetting(ignoreCase: boolean): Flag {
+    return ignoreCase ? 'no' : 'yes';
 }
 
 /** Sorts every block in the content. defaultCase is the `case` of a block

@@ -1,5 +1,5 @@
 import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
-import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort';
+import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort';
 
 /** How long a file must go unmodified before its blocks are sorted. Sorting on
  *  every change reorders lines under the cursor while they are still being
@@ -122,7 +122,7 @@ export default class KeepSortedPlugin extends Plugin {
             // process() reads and writes atomically, so text saved between a
             // separate read and write cannot be overwritten.
             await this.app.vault.process(file, (content) =>
-                sortKeepSortedBlocks(content, this.settings.ignoreCaseByDefault ? 'no' : 'yes'));
+                sortKeepSortedBlocks(content, caseForSetting(this.settings.ignoreCaseByDefault)));
         } catch (e) {
             console.error(`Keep Sorted: failed to sort ${file.path}`, e);
             new Notice(`Keep Sorted: failed to sort ${file.path}`);
@@ -147,7 +147,7 @@ class KeepSortedSettingTab extends PluginSettingTab {
         this.containerEl.empty();
         new Setting(this.containerEl)
             .setName('Ignore case by default')
-            .setDesc("Sort blocks that have no case option without regard to case, so apple comes before Zebra. A case=yes or case=no on a block always wins. Off matches Google's keep-sorted, where uppercase sorts before lowercase.")
+            .setDesc("Sort blocks that have no case option without regard to case, so apple comes before Zebra. A case=yes or case=no on a block always wins. Blocks are sorted by this setting the next time their file is edited, and it is kept per device, so keep it the same on every device that shares a vault. Off matches Google's keep-sorted, where uppercase sorts before lowercase.")
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.ignoreCaseByDefault)
                 .onChange(async (value) => {

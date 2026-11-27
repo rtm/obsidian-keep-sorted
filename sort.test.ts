@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
+import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
@@ -125,6 +125,11 @@ test('an explicit case=yes beats a default of no', () => {
 test('an explicit case=no beats a default of yes', () => {
     const opts = 'case=no';
     assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'yes'), block('- apple\n- Zebra\n', opts));
+});
+
+test('the setting maps to the default case', () => {
+    assert.equal(caseForSetting(false), 'yes');
+    assert.equal(caseForSetting(true), 'no');
 });
 
 test('a default of no reaches nested blocks, table columns and task text', () => {

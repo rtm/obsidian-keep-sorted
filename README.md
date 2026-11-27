@@ -116,7 +116,7 @@ Options can be added to the start marker:
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `order` | `asc`, `desc` | `asc` | Sort direction |
-| `case` | `yes`, `no` | `yes`, or `no` with the setting | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. The plugin setting "Ignore case by default" makes `no` the default for blocks that give no `case`; an explicit `case=yes` or `case=no` always wins. |
+| `case` | `yes`, `no` | `yes`, or `no` with the setting | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. The plugin setting "Ignore case by default" makes `no` the default for blocks that give no `case`; an explicit `case=yes` or `case=no` always wins. The setting is stored per device, so keep it the same on every device that shares a vault. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10. With `column`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value instead. |
 | `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
 | `nested` | `yes`, `no` | `no` | Also sort the items under each item, at every level, so one pair of markers sorts a whole outline. Has no effect with `group=no`, which leaves nothing under an item. Not in Google's keep-sorted. |
