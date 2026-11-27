@@ -41,7 +41,7 @@ When the part of an item that should decide its place is in the middle of the li
 %% keep-sorted end %%
 ```
 
-The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and the leading punctuation a plain item would skip is kept. `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
+The three items sort as Adams, Moore and Reed; the markers are comments, so they do not show in reading view. An item with no key is compared by its whole line, among the others. The pair must be on the item's first line, since the lines indented under an item can hold keys of their own. Only the first complete pair on a line counts, and a marker left unclosed, or a key with nothing in it, is ignored. The key is used as written, apart from link syntax and formatting, which are removed as in any item text, and, with `ignore_punctuation=yes`, punctuation, as in any item text (see Sort key extraction). `case`, `numeric` and `order` apply to it, and with `key=task-status` it replaces the text after the checkbox. In a table, a key in a cell is that cell's text. Not in Google's keep-sorted.
 
 When the key cannot be wrapped, because the name sits inside a link, where a comment would break it, or is not on the line at all, give it in one comment instead:
 
@@ -77,7 +77,7 @@ Rows are sorted by their full text, which effectively sorts by the first column.
 %% keep-sorted start column="Due date" numeric=yes order=desc %%
 ```
 
-Cells are compared the way list items are, by the text you see; an escaped pipe (`\|`, as in an aliased wikilink) stays inside its cell. With `numeric=yes`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value. Rows whose cells tie are ordered by their full text, and rows with an empty cell in that column go last whichever way the table is sorted. A `column` that names no column, including a position past the last column, or is given on a block that is not a table, leaves the block unsorted and logs a warning in the developer console.
+Cells are compared the way list items are, by the text you see; an escaped pipe (`\|`, as in an aliased wikilink) stays inside its cell. With `numeric=yes`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value. Rows whose cells tie are ordered by their full text (with `ignore_punctuation=yes`, rows that differ only in punctuation keep their order), and rows with an empty cell in that column go last whichever way the table is sorted. A `column` that names no column, including a position past the last column, or is given on a block that is not a table, leaves the block unsorted and logs a warning in the developer console.
 
 A block can sit inside another block. The inner block is sorted on its own, and, indented under a list item, it moves with that item when the outer block is sorted:
 
@@ -116,19 +116,20 @@ Options can be added to the start marker:
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `order` | `asc`, `desc` | `asc` | Sort direction |
-| `case` | `yes`, `no` | `yes` | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. |
+| `case` | `yes`, `no` | `yes`, or `no` with the setting | Case-sensitive sorting, uppercase before lowercase. Use `case=no` to ignore case. The plugin setting "Ignore case by default" makes `no` the default for blocks that give no `case`; an explicit `case=yes` or `case=no` always wins. The setting is stored per device, so keep it the same on every device that shares a vault. |
 | `numeric` | `yes`, `no` | `no` | Compare runs of digits by value, so 2 sorts before 10. With `column`, cells that are numbers, such as `$1,250.00`, `-3.5` or `12%`, compare by value instead. |
 | `group` | `yes`, `no` | `yes` | Move indented continuation lines with the item above them. Use `group=no` to sort every line on its own. |
 | `nested` | `yes`, `no` | `no` | Also sort the items under each item, at every level, so one pair of markers sorts a whole outline. Has no effect with `group=no`, which leaves nothing under an item. Not in Google's keep-sorted. |
 | `column` | a position such as `2`, or a header such as `Color` or `"Due date"` | none | Sort a table by one column instead of by each row's full text. Not in Google's keep-sorted. |
 | `key` | `text`, `task-status` | `text` | What an item sorts by: its text, or its checkbox first and then its text. With `column`, the checkbox in that column's cell. Not in Google's keep-sorted. |
+| `ignore_punctuation` | `yes`, `no` | `no` | Leave punctuation out of the sort keys, in any script: every character Unicode gives General Category P, so `“Paper”`, `(Paper)` and `Paper` sort alike. See Sort key extraction. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
-A value that is not one of those listed for `order`, `case`, `numeric`, `group`, `nested` or `key` is ignored: the option is left as it was, which is its default unless the option is repeated, and a warning is logged in the developer console.
+A value that is not one of those listed for `order`, `case`, `numeric`, `group`, `nested`, `key` or `ignore_punctuation` is ignored: the option is left as it was, which is its default unless the option is repeated, and a warning is logged in the developer console.
 
 A name that is not in the table is ignored too, with a warning in the developer console that says whether it is one of Google's options this plugin does not support, or, for a misspelling such as `casee`, which option you may have meant.
 
-These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column` and `key`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation inside a name, sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
+These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column`, `key` and `ignore_punctuation`, which it does not have, and the default for `case` once you turn on the "Ignore case by default" setting. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation, sort by their character codes unless `ignore_punctuation=yes`. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
 
@@ -139,7 +140,9 @@ Sort keys are derived by stripping the following from each line:
 - Markdown links: `[text](url)` sorts by text
 - Formatting: `**bold**`, `*italic*`, `` `code` ``, `~~strikethrough~~`
 - Everything but the key, on an item that carries a `keep-sorted-key` comment or `start-key` and `end-key` markers; a `keep-sorted-key` comment with nothing in it is dropped
-- Punctuation at the front of what is left: `“Paper”` and `(Paper)` both sort as `Paper`. A number keeps its sign, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is.
+- With `ignore_punctuation=yes`, punctuation, wherever it stands in what is left and in any script: every character Unicode gives General Category P is dropped, so `“Paper”`, `(Paper)` and `Paper` sort alike, as do `Dr. Smith` and `Dr Smith`, and `well-known` sorts as `wellknown`. Symbols, such as `$`, `+`, `~` and `〒`, are not punctuation and stay. This applies to explicit keys too (inline keys, `keep-sorted-key` comments and table cells), and to the text after a checkbox. Runs of spaces left behind become one. A number keeps its sign and separators, a task keeps its `[ ]` or `[x]`, and a key of nothing but punctuation is left as it is. A single punctuation character between two digits, in any script's digits, stays, so `v1.9` and `v10.0`, or `1.2.10` and `1.10.2`, keep their digit runs apart, and with `numeric=yes` the versions sort by value. Items whose keys are the same once punctuation is gone, such as `Dr.` and `Dr`, keep the order they had.
+
+By default no punctuation is ignored, as in Google's keep-sorted, so an item that starts with a quote or bracket sorts by that character's code. Release 1.3.0 ignored leading punctuation in every block; that is now off unless the block says `ignore_punctuation=yes`, so a block of items that begin with quotes, brackets or similar may sort differently until you add the option.
 
 Multi-line items (continuation lines indented deeper than the first line) are kept together as a group unless `group=no` is given.
 

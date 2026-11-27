@@ -1,20 +1,210 @@
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
+import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
 /** A block whose start marker carries the options, written as 'order=desc'. */
 const block = (body: string, opts = '') =>
     `%% keep-sorted start${opts && ' ' + opts} %%\n${body}%% keep-sorted end %%`;
 
+/** The option that leaves punctuation out of the keys, off unless given. */
+const IGNORE = 'ignore_punctuation=yes';
+
+/** The items sorted as a list, for testing what a key is made of. */
+const sortedItems = (items: string[], opts = IGNORE) =>
+    sortKeepSortedBlocks(block(items.map(i => `- ${i}\n`).join(''), opts)).split('\n').slice(1, -1).map(l => l.slice(2));
+
 test('sorts a plain list', () => {
     assert.equal(sortKeepSortedBlocks(block('- b\n- a\n')), block('- a\n- b\n'));
 });
 
-test('leading punctuation does not decide where an item sorts', () => {
-    const input = block('* Quarto\n* “[Paper](https://example.com)” is unmaintained\n* \'Tis a note\n* Albus\n* "Ode" in quotes\n* (Delta) in brackets\n* — Echo\n* ¡Bravo!\n', ' case=no');
-    const expected = block('* Albus\n* ¡Bravo!\n* (Delta) in brackets\n* — Echo\n* "Ode" in quotes\n* “[Paper](https://example.com)” is unmaintained\n* Quarto\n* \'Tis a note\n', ' case=no');
+test('with ignore_punctuation=yes, leading punctuation does not decide where an item sorts', () => {
+    const opts = `case=no ${IGNORE}`;
+    const input = block('* Quarto\n* “[Paper](https://example.com)” is unmaintained\n* \'Tis a note\n* Albus\n* "Ode" in quotes\n* (Delta) in brackets\n* — Echo\n* ¡Bravo!\n', opts);
+    const expected = block('* Albus\n* ¡Bravo!\n* (Delta) in brackets\n* — Echo\n* "Ode" in quotes\n* “[Paper](https://example.com)” is unmaintained\n* Quarto\n* \'Tis a note\n', opts);
     assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
+test('by default punctuation is an ordinary character: a leading quote or bracket sorts by its code', () => {
+    const opts = 'case=no';
+    const input = block('* Quarto\n* “[Paper](https://example.com)” is unmaintained\n* \'Tis a note\n* Albus\n* "Ode" in quotes\n* (Delta) in brackets\n* — Echo\n* ¡Bravo!\n', opts);
+    // By code point: " ' ( then letters, then ¡ — “.
+    const expected = block('* "Ode" in quotes\n* \'Tis a note\n* (Delta) in brackets\n* Albus\n* Quarto\n* ¡Bravo!\n* — Echo\n* “[Paper](https://example.com)” is unmaintained\n', opts);
+    assert.equal(sortKeepSortedBlocks(input), expected);
+});
+
+test('by default punctuation inside, after and between words decides the order too', () => {
+    assert.deepEqual(sortedItems(['Dr.', 'Dr'], ''), ['Dr', 'Dr.']);
+    assert.deepEqual(sortedItems(['AT&T', 'ATM'], ''), ['AT&T', 'ATM']);
+    assert.deepEqual(sortedItems(['ほげふが', 'ほげ、ふが'], ''), ['ほげ、ふが', 'ほげふが']);
+    assert.deepEqual(sortedItems(['«Zeta»', 'Alpha', '「ほげ」', '(Beta)'], ''), ['(Beta)', 'Alpha', '«Zeta»', '「ほげ」']);
+    assert.deepEqual(sortedItems(['a - c', 'a b'], ''), ['a - c', 'a b']);
+});
+
+test('ignore_punctuation=no is the same as leaving it out, and a bad value warns and means no', () => {
+    const items = ['“b”', 'a', '(c)'];
+    assert.deepEqual(sortedItems(items, 'ignore_punctuation=no'), sortedItems(items, ''));
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => { warnings.push(message); };
+    try {
+        assert.deepEqual(sortedItems(items, 'ignore_punctuation=maybe'), sortedItems(items, ''));
+        sortedItems(items, 'ignore_punctuation=maybe');
+    } finally {
+        console.warn = warn;
+    }
+    // Once, however many times the block is sorted.
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /ignore_punctuation=maybe/);
+});
+
+test('leading punctuation is ignored in every script, by Unicode category', () => {
+    // Each pair is the input and the order it sorts into, by the words after the punctuation.
+    const cases: [string, string[], string[]][] = [
+        ['Latin', ['«Zeta»', '¡Alpha!', '¿Mu?', '(Beta)'], ['¡Alpha!', '(Beta)', '¿Mu?', '«Zeta»']],
+        ['Greek', ['«Ωμέγα»', ';Βήτα', '·Άλφα'], ['·Άλφα', ';Βήτα', '«Ωμέγα»']],
+        ['Cyrillic', ['—Яблоко', '«Банан»', '„Арбуз“'], ['„Арбуз“', '«Банан»', '—Яблоко']],
+        ['Arabic', ['،جمل', '«باب»', 'أسد'], ['أسد', '«باب»', '،جمل']],
+        ['Japanese', ['「ほげ」', '『あいう』', '〜うえお', '、かきく', '・さしす'], ['『あいう』', '〜うえお', '、かきく', '・さしす', '「ほげ」']],
+        ['fullwidth forms', ['！ほげ', '（あいう）', '＂うえお＂', '＃かきく', '－さしす'], ['（あいう）', '＂うえお＂', '＃かきく', '－さしす', '！ほげ']],
+    ];
+    for (const [script, input, expected] of cases) {
+        assert.deepEqual(sortedItems(input), expected, script);
+    }
+});
+
+test('every character Unicode gives category P is ignored, leading, inside or trailing, in a list and in a table cell', () => {
+    const notIgnored: string[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+        if (cp >= 0xd800 && cp <= 0xdfff) continue;
+        const ch = String.fromCodePoint(cp);
+        // * and _ are formatting, which is removed before punctuation is considered.
+        if (!/^\p{P}$/u.test(ch) || ch === '*' || ch === '_') continue;
+        // c sorts after, and a before, the punctuation if it were part of the key.
+        const inList = sortedItems([`${ch}b`, 'c', 'a']);
+        const table = block(`| Name |\n| --- |\n| ${ch}b |\n| c |\n| a |\n`, `column=Name ${IGNORE}`);
+        const inCell = sortKeepSortedBlocks(table).split('\n').slice(3, 6);
+        // Inside and trailing: kept, the character would sort a?c before ab, or after ad, and b? after c.
+        const inside = sortedItems([`a${ch}c`, 'ad', 'ab']);
+        const trailing = sortedItems([`b${ch}`, 'c', 'a']);
+        const wrong = inList.join() !== ['a', `${ch}b`, 'c'].join()
+            || inCell.join() !== ['| a |', `| ${ch}b |`, '| c |'].join()
+            || inside.join() !== ['ab', `a${ch}c`, 'ad'].join()
+            || trailing.join() !== ['a', `b${ch}`, 'c'].join();
+        if (wrong) {
+            notIgnored.push(`U+${cp.toString(16).toUpperCase()}`);
+        }
+    }
+    assert.deepEqual(notIgnored, []);
+});
+
+test('Japanese letters and marks that look like punctuation stay part of the key', () => {
+    // ー and 々 are Lm, 〆 is Lo; each sorts after b by its code point if kept.
+    assert.deepEqual(sortedItems(['ーa', 'b']), ['b', 'ーa']);
+    assert.deepEqual(sortedItems(['々a', 'b']), ['b', '々a']);
+    assert.deepEqual(sortedItems(['〆a', 'b']), ['b', '〆a']);
+});
+
+test('leading symbols, which Unicode does not call punctuation, still decide the order', () => {
+    for (const symbol of ['～', '〒', '〓', '＋', '＝', '＄', '￥', '$', '+', '<', '=', '^', '|', '~']) {
+        // Kept, it sorts by its own code point: before a, or after c.
+        const item = `${symbol}b`;
+        assert.deepEqual(sortedItems([item, 'c', 'a']), symbol < 'a' ? [item, 'a', 'c'] : ['a', 'c', item], symbol);
+    }
+});
+
+test('punctuation inside or after the text is ignored too, in every script', () => {
+    assert.deepEqual(sortedItems(['well-known b', 'wellknown a', 'well known c']), ['well known c', 'wellknown a', 'well-known b']);
+    assert.deepEqual(sortedItems(['AT&T', 'ATM']), ['ATM', 'AT&T']);
+    assert.deepEqual(sortedItems(['ほげ、ふが', 'ほげあ']), ['ほげあ', 'ほげ、ふが']);
+    assert.deepEqual(sortedItems(['«Zeta», b', 'Zeta a']), ['Zeta a', '«Zeta», b']);
+    assert.deepEqual(sortedItems(['«Привет», мир', 'Привет, всем']), ['Привет, всем', '«Привет», мир']);
+});
+
+test('dropping punctuation between spaces leaves one space, not a gap', () => {
+    assert.deepEqual(sortedItems(['a - c', 'a b']), ['a b', 'a - c']);
+    assert.deepEqual(sortedItems(['x  y c', 'x - y b', 'x y a']), ['x y a', 'x - y b', 'x  y c']);
+});
+
+test('keys that tie once punctuation is gone keep the order they came in, in either direction', () => {
+    assert.deepEqual(sortedItems(['Dr.', 'Dr']), ['Dr.', 'Dr']);
+    assert.deepEqual(sortedItems(['Dr', 'Dr.']), ['Dr', 'Dr.']);
+    assert.deepEqual(sortedItems(['ほげふが', 'ほげ、ふが']), ['ほげふが', 'ほげ、ふが']);
+    const desc = sortKeepSortedBlocks(block('- Dr.\n- Dr\n- Zed\n', 'order=desc'));
+    assert.equal(desc, block('- Zed\n- Dr.\n- Dr\n', 'order=desc'));
+    // Sorting what is already sorted changes nothing.
+    assert.equal(sortKeepSortedBlocks(desc), desc);
+});
+
+test('symbols are not punctuation, so they still decide the order inside a key', () => {
+    assert.deepEqual(sortedItems(['a~c', 'ab']), ['ab', 'a~c']);
+    assert.deepEqual(sortedItems(['a+c', 'a-b', 'a$d']), ['a$d', 'a+c', 'a-b']);
+});
+
+test('explicit keys ignore punctuation too', () => {
+    const items = (...lines: string[]) => lines.map(l => `- ${l}\n`).join('');
+    // The raw keys sort “c” and (a) by their opening mark; the letters say a, b, c.
+    assert.equal(
+        sortKeepSortedBlocks(block(items(keyed('x', '“c”'), keyed('x', 'b.'), keyed('x', '(a)')), IGNORE)),
+        block(items(keyed('x', '(a)'), keyed('x', 'b.'), keyed('x', '“c”')), IGNORE));
+    assert.equal(
+        sortKeepSortedBlocks(block(items(commented('x', '「c」'), commented('x', 'b!'), commented('x', '¡a')), IGNORE)),
+        block(items(commented('x', '¡a'), commented('x', 'b!'), commented('x', '「c」')), IGNORE));
+    // An interior comma is gone, so the key compares as "Smith Jo" against "Smith Al".
+    assert.equal(
+        sortKeepSortedBlocks(block(items(commented('x', 'Smith, Jo'), commented('x', 'Smith Al')), IGNORE)),
+        block(items(commented('x', 'Smith Al'), commented('x', 'Smith, Jo')), IGNORE));
+    // By default an explicit key keeps its punctuation, so the raw keys decide.
+    assert.equal(
+        sortKeepSortedBlocks(block(items(keyed('x', '“a”'), keyed('x', 'b.'), keyed('x', '(c)')))),
+        block(items(keyed('x', '(c)'), keyed('x', 'b.'), keyed('x', '“a”'))));
+    assert.equal(
+        sortKeepSortedBlocks(block(items(commented('x', 'Smith, Al'), commented('x', 'Smith Jo')))),
+        block(items(commented('x', 'Smith Jo'), commented('x', 'Smith, Al'))));
+});
+
+test('table cells and task text ignore punctuation, interior included', () => {
+    const table = (rows: string) => block(`| Name |\n| --- |\n${rows}`, `column=Name ${IGNORE}`);
+    assert.equal(sortKeepSortedBlocks(table("| O'neil |\n| Oak |\n| Oat |\n")), table("| Oak |\n| Oat |\n| O'neil |\n"));
+    const tasks = (rows: string) => block(rows, `key=task-status ${IGNORE}`);
+    assert.equal(sortKeepSortedBlocks(tasks('- [ ] c.\n- [x] b\n- [ ] (a)\n')), tasks('- [ ] (a)\n- [ ] c.\n- [x] b\n'));
+});
+
+test('punctuation between digits stays, so digit runs are not fused', () => {
+    const sorted = (items: string[], opts = `numeric=yes ${IGNORE}`) =>
+        sortKeepSortedBlocks(block(items.map(i => `- ${i}\n`).join(''), opts)).split('\n').slice(1, -1).map(l => l.slice(2));
+    // Fused, these would compare as 1210, 1102 and 110; apart, as versions.
+    assert.deepEqual(sorted(['1.10.2', '1.2.10', '1.10']), ['1.2.10', '1.10', '1.10.2']);
+    assert.deepEqual(sorted(['1.10.1', '1.9']), ['1.9', '1.10.1']);
+    // Pre-release suffixes sort as text after the release, not as semver.
+    assert.deepEqual(sorted(['v1.10.2', 'v1.2.10', 'v1.9.0-rc.1', 'v1.9.0']), ['v1.2.10', 'v1.9.0', 'v1.9.0-rc.1','v1.10.2']);
+    assert.deepEqual(sorted(['10:30 b', '9:45 a', '10:5 c']), ['9:45 a', '10:5 c', '10:30 b']);
+    // Without numeric the digits are characters, but v1.9 must still come before v10.0, and dates keep their dashes.
+    assert.deepEqual(sorted(['v10.0', 'v1.9'], IGNORE), ['v1.9', 'v10.0']);
+    assert.deepEqual(sorted(['2024-10-1', '2024-1-5'], IGNORE), ['2024-1-5', '2024-10-1']);
+    // Digits of other scripts count: fullwidth, so ｖ１．９ stays ahead of ｖ１０．０.
+    assert.deepEqual(sorted(['ｖ１０．０', 'ｖ１．９'], IGNORE), ['ｖ１．９', 'ｖ１０．０']);
+    // Only a single character is a separator; brackets around digits are dropped, so (2)(3) b reads as 23 b.
+    assert.deepEqual(sorted(['(2)(3) b', '23 a', '2 3 c'], `numeric=yes ${IGNORE}`), ['2 3 c', '23 a', '(2)(3) b']);
+    // Punctuation not between digits is still dropped.
+    assert.deepEqual(sorted(['(v2.1)', 'v1.12.']), ['v1.12.', '(v2.1)']);
+    // A number in a table cell is read by its value, separators and all.
+    const table = (rows: string) => block(`| Amount |\n| --- |\n${rows}`, `column=Amount numeric=yes ${IGNORE}`);
+    assert.equal(sortKeepSortedBlocks(table('| 1,250.5 |\n| 300 |\n| 12 |\n')), table('| 12 |\n| 300 |\n| 1,250.5 |\n'));
+});
+
+test('a column name picks the header it spells exactly before one that differs in punctuation', () => {
+    const table = (rows: string) => block(`| Q1. | Q1 |\n| --- | --- |\n${rows}`, 'column=Q1');
+    // The exact match does not depend on the option.
+    assert.equal(sortKeepSortedBlocks(table('| a | z |\n| b | y |\n')), table('| b | y |\n| a | z |\n'));
+    // With no exact header, the punctuation-free spelling finds it.
+    const loose = (rows: string, opts: string) => block(`| Q1. | Z |\n| --- | --- |\n${rows}`, opts);
+    assert.equal(sortKeepSortedBlocks(loose('| b | 1 |\n| a | 2 |\n', `column=Q1 ${IGNORE}`)), loose('| a | 2 |\n| b | 1 |\n', `column=Q1 ${IGNORE}`));
+    // Without the option the header must be spelled as it is (a list-like prefix aside), so the column is not found and the block is left alone.
+    const unsorted = loose('| b | 1 |\n| a | 2 |\n', 'column=Q1');
+    assert.equal(sortKeepSortedBlocks(unsorted), unsorted);
+    const numbered = (rows: string) => block(`| 1. Cost | Z |\n| --- | --- |\n${rows}`, 'column=Cost');
+    assert.equal(sortKeepSortedBlocks(numbered('| b | 1 |\n| a | 2 |\n')), numbered('| a | 2 |\n| b | 1 |\n'));
 });
 
 test('checked and unchecked tasks stay apart', () => {
@@ -85,6 +275,9 @@ test('characters outside the BMP sort by code point, as UTF-8 bytes do', () => {
 test('skip_lines=0 turns table detection off', () => {
     const input = block('| b |\n| --- |\n| a |\n', 'skip_lines=0');
     assert.equal(sortKeepSortedBlocks(input), block('| --- |\n| a |\n| b |\n', 'skip_lines=0'));
+    // With ignore_punctuation=yes the separator row's dashes are gone, so it sorts as an empty row, after the others.
+    const ignoring = block('| b |\n| --- |\n| a |\n', `skip_lines=0 ${IGNORE}`);
+    assert.equal(sortKeepSortedBlocks(ignoring), block('| a |\n| b |\n| --- |\n', `skip_lines=0 ${IGNORE}`));
 });
 
 test('a table without outer pipes is detected', () => {
@@ -108,6 +301,42 @@ test('sorting is case-sensitive by default, uppercase first', () => {
 test('case=no sorts case-insensitively', () => {
     const opts = 'case=no';
     assert.equal(sortKeepSortedBlocks(block('- Bravo\n- alpha\n- Delta\n- charlie\n', opts)), block('- alpha\n- Bravo\n- charlie\n- Delta\n', opts));
+});
+
+test('with no case option and the default off, Zebra sorts before apple', () => {
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n'), 'yes'), block('- Zebra\n- apple\n'));
+});
+
+test('with no case option and the default on, apple sorts before Zebra', () => {
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n'), 'no'), block('- apple\n- Zebra\n'));
+});
+
+test('an explicit case=yes beats a default of no', () => {
+    const opts = 'case=yes';
+    assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'no'), block('- Zebra\n- apple\n', opts));
+});
+
+test('an explicit case=no beats a default of yes', () => {
+    const opts = 'case=no';
+    assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'yes'), block('- apple\n- Zebra\n', opts));
+});
+
+test('the setting maps to the default case', () => {
+    assert.equal(caseForSetting(false), 'yes');
+    assert.equal(caseForSetting(true), 'no');
+});
+
+test('a default of no reaches nested blocks, table columns and task text', () => {
+    const inner = (items: string) => `    %% keep-sorted start %%\n${items}    %% keep-sorted end %%\n`;
+    assert.equal(
+        sortKeepSortedBlocks(block(`- b\n${inner('    - Zebra\n    - apple\n')}- a\n`), 'no'),
+        block(`- a\n- b\n${inner('    - apple\n    - Zebra\n')}`));
+
+    const table = (rows: string) => block(`| Name | Note |\n| --- | --- |\n${rows}`, 'column=Name');
+    assert.equal(sortKeepSortedBlocks(table('| Zebra | 1 |\n| apple | 2 |\n'), 'no'), table('| apple | 2 |\n| Zebra | 1 |\n'));
+
+    const tasks = (items: string) => block(items, 'key=task-status');
+    assert.equal(sortKeepSortedBlocks(tasks('- [ ] Zebra\n- [ ] apple\n'), 'no'), tasks('- [ ] apple\n- [ ] Zebra\n'));
 });
 
 test('numeric=yes compares runs of digits by value', () => {
@@ -351,8 +580,15 @@ test('key=task-status sorts lines without a checkbox after the other statuses an
     assert.equal(sortKeepSortedBlocks(input), block('- [ ] open\n- [-] cancelled\n- plain a\n- plain b\n- [x] done\n', opts));
 });
 
-test('key=text is the default and leaves the current ordering alone', () => {
+test('key=text is the default and sorts the text as written', () => {
     for (const opts of ['', 'key=text']) {
+        const input = block('- [x] apple\n- [ ] zebra\n- [-] b\n- [ ] mango\n', opts);
+        assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [-] b\n- [x] apple\n', opts));
+    }
+});
+
+test('with ignore_punctuation=yes, key=text keeps a checkbox and ignores the punctuation after it', () => {
+    for (const opts of [IGNORE, `key=text ${IGNORE}`]) {
         const input = block('- [x] apple\n- [ ] zebra\n- [-] b\n- [ ] mango\n', opts);
         assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n- [-] b\n', opts));
     }
@@ -400,6 +636,7 @@ const choiceOptions = [
     { name: 'order', input: '- a\n- b\n', sorted: { asc: '- a\n- b\n', desc: '- b\n- a\n' }, fallback: 'asc', bad: ['descending', 'DESC'] },
     { name: 'numeric', input: '- item10\n- item2\n', sorted: { yes: '- item2\n- item10\n', no: '- item10\n- item2\n' }, fallback: 'no', bad: ['yess', 'true'] },
     { name: 'group', input: '- b\n  - y\n- a\n  - x\n', sorted: { yes: '- a\n  - x\n- b\n  - y\n', no: '- a\n- b\n  - x\n  - y\n' }, fallback: 'yes', bad: ['yess', 'true'] },
+    { name: 'ignore_punctuation', input: '- (b)\n- c\n- a\n', sorted: { yes: '- a\n- (b)\n- c\n', no: '- (b)\n- a\n- c\n' }, fallback: 'no', bad: ['yess', 'true'] },
     { name: 'nested', input: '- b\n  - z\n  - y\n- a\n', sorted: { yes: '- a\n- b\n  - y\n  - z\n', no: '- a\n- b\n  - z\n  - y\n' }, fallback: 'no', bad: ['yess', 'true'] },
 ];
 
@@ -432,6 +669,17 @@ for (const { name, input, sorted, fallback, bad } of choiceOptions) {
         }
     });
 }
+
+test('a case value that is not yes or no falls back to the configured default, not to yes', () => {
+    const opts = 'case=maybe';
+    const warnings = warningsFrom(() => {
+        assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'no'), block('- apple\n- Zebra\n', opts));
+        assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'yes'), block('- Zebra\n- apple\n', opts));
+    });
+    assert.equal(warnings.length, 2);
+    assert.ok(warnings[0].includes('case=no is kept'), warnings[0]);
+    assert.ok(warnings[1].includes('case=yes is kept'), warnings[1]);
+});
 
 test('a bad value on a repeated option keeps the earlier value', () => {
     const opts = 'numeric=yes numeric=bogus case=no case=bogus2';
@@ -492,10 +740,16 @@ test('a Google keep-sorted option the plugin lacks says so, and is ignored', () 
 });
 
 test('every option the plugin handles is accepted without a warning', () => {
-    const opts = 'case=no order=desc numeric=yes skip_lines=0 group=no nested=yes key=text column=1';
+    const opts = 'case=no order=desc numeric=yes skip_lines=0 group=no nested=yes key=text column=1 ignore_punctuation=yes';
     const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', opts)));
     // column= wants a table, so that one warning is expected and no other.
     assert.deepEqual(warnings.filter(w => !w.includes('column')), []);
+});
+
+test('ignore_punctuation=yes is not an unknown option, and a misspelling of it suggests it', () => {
+    assert.deepEqual(warningsFrom(() => sortKeepSortedBlocks(block('- a\n', 'ignore_punctuation=yes'))), []);
+    const warnings = warningsFrom(() => sortKeepSortedBlocks(block('- a\n', 'ignore_punctuaton=yes')));
+    assert.deepEqual(warnings, ['Keep Sorted: ignore_punctuaton is not a keep-sorted option; it is ignored; did you mean ignore_punctuation?']);
 });
 
 test('only name=value tokens in the options count: not a URL, a bare word or a quoted value', () => {
@@ -646,9 +900,14 @@ test('an empty or blank key counts as absent, so the item sorts by its whole lin
     assert.equal(sortKeepSortedBlocks(input), block(`- Adams\n- Mary ${keyed('', '  ')}\n- Zoe ${keyed('', '')}\n`));
 });
 
-test('a marked key keeps its leading punctuation and list-like prefix', () => {
+test('a marked key keeps its punctuation and list-like prefix', () => {
     const input = block(`- ${keyed('', 'a')}\n- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n`);
     assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n- ${keyed('', 'a')}\n`));
+});
+
+test('with ignore_punctuation=yes, a marked key keeps its list-like prefix as text, but loses its punctuation', () => {
+    const input = block(`- ${keyed('', 'a')}\n- ${keyed('', '(c)')}\n- ${keyed('', '2. b')}\n`, IGNORE);
+    assert.equal(sortKeepSortedBlocks(input), block(`- ${keyed('', '2. b')}\n- ${keyed('', 'a')}\n- ${keyed('', '(c)')}\n`, IGNORE));
 });
 
 test('a key on a continuation line does not decide the item\'s place', () => {
@@ -712,13 +971,13 @@ test('a key comment is not mistaken for a block marker, and keep-sorted-keyword 
     const input = block(`%% keep-sorted-key b %% x
 - %% keep-sorted-keyword a %% z
 - y
-`);
+`, IGNORE);
     // The first line sorts as b; the second, with no key, as its text less its
     // leading punctuation, keep-sorted-keyword.
     assert.equal(sortKeepSortedBlocks(input), block(`%% keep-sorted-key b %% x
 - %% keep-sorted-keyword a %% z
 - y
-`));
+`, IGNORE));
 });
 
 test('a key comment replaces the text after the checkbox with key=task-status', () => {
