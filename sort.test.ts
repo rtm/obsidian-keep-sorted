@@ -16,6 +16,62 @@ test('leading punctuation does not decide where an item sorts', () => {
     assert.equal(sortKeepSortedBlocks(input), expected);
 });
 
+/** The items sorted as a list, for testing what a key is made of. */
+const sortedItems = (items: string[]) =>
+    sortKeepSortedBlocks(block(items.map(i => `- ${i}\n`).join(''))).split('\n').slice(1, -1).map(l => l.slice(2));
+
+test('leading punctuation is ignored in every script, by Unicode category', () => {
+    const cases: [string, string[]][] = [
+        ['Latin', ['«Zeta»', '¡Alpha!', '¿Mu?', '(Beta)']],
+        ['Greek', ['«Ωμέγα»', '·Άλφα', ';Βήτα']],
+        ['Cyrillic', ['—Яблоко', '„Арбуз“', '«Банан»']],
+        ['Arabic', ['،جمل', '«باب»', 'أسد']],
+        ['Japanese', ['「ほげ」', '『あいう』', '〜うえお', '、かきく', '・さしす']],
+        ['fullwidth forms', ['！ほげ', '（あいう）', '＂うえお＂', '＃かきく', '－さしす']],
+    ];
+    for (const [script, items] of cases) {
+        const sorted = sortedItems(items);
+        const key = (s: string) => s.replace(/^[\s\p{P}]+/u, '');
+        assert.deepEqual(sorted.map(key), sorted.map(key).sort(), script);
+        assert.equal(new Set(sorted).size, items.length, script);
+    }
+});
+
+test('every character Unicode gives category P is ignored when it leads', () => {
+    const notIgnored: string[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+        if (cp >= 0xd800 && cp <= 0xdfff) continue;
+        const ch = String.fromCodePoint(cp);
+        if (!/^\p{P}$/u.test(ch)) continue;
+        // c would sort after, and a before, the punctuation if it were part of the key.
+        const sorted = sortedItems([`${ch}b`, 'c', 'a']);
+        if (sorted.join() !== ['a', `${ch}b`, 'c'].join()) notIgnored.push(`U+${cp.toString(16).toUpperCase()}`);
+    }
+    assert.deepEqual(notIgnored, []);
+});
+
+test('Japanese letters and marks that look like punctuation stay part of the key', () => {
+    // ー and 々 are Lm, 〆 is Lo; each sorts after b by its code point if kept.
+    assert.deepEqual(sortedItems(['ーa', 'b']), ['b', 'ーa']);
+    assert.deepEqual(sortedItems(['々a', 'b']), ['b', '々a']);
+    assert.deepEqual(sortedItems(['〆a', 'b']), ['b', '〆a']);
+});
+
+test('leading symbols, which Unicode does not call punctuation, still decide the order', () => {
+    for (const symbol of ['～', '〒', '〓', '＋', '＝', '＄', '￥', '$', '+', '<', '=', '^', '|', '~']) {
+        // Kept, it sorts by its own code point: before a, or after c.
+        const item = `${symbol}b`;
+        assert.deepEqual(sortedItems([item, 'c', 'a']), symbol < 'a' ? [item, 'a', 'c'] : ['a', 'c', item], symbol);
+    }
+});
+
+test('punctuation inside or after the text still decides the order', () => {
+    // Were it ignored, each pair would tie and keep the order it came in.
+    assert.deepEqual(sortedItems(['ほげふが', 'ほげ、ふが']), ['ほげ、ふが', 'ほげふが']);
+    assert.deepEqual(sortedItems(['Dr.', 'Dr']), ['Dr', 'Dr.']);
+    assert.deepEqual(sortedItems(['「Paper」 b', '「Paper b']), ['「Paper b', '「Paper」 b']);
+});
+
 test('checked and unchecked tasks stay apart', () => {
     const input = block('- [x] apple\n- [ ] zebra\n- [ ] mango\n- [x] banana\n');
     assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n- [x] banana\n'));
