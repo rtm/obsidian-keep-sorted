@@ -179,18 +179,28 @@ function visibleText(text: string, keepCase: Flag): string {
  *  Three things keep theirs: a number its sign and separators, a task its
  *  checkbox, so checked and unchecked tasks stay apart, and a key of nothing
  *  but punctuation, so a dash placeholder still sorts as a dash rather than
- *  as an empty cell. Punctuation between two digits stays too, whatever the
- *  numeric option: dropping the dots would fuse 1.9 into 19, which sorts
- *  after 10.0 as 100, and 1.2.10 into 1210. */
+ *  as an empty cell. A single punctuation character between two digits stays
+ *  too, whatever the numeric option: dropping the dots would fuse 1.9 into 19,
+ *  which sorts after 10.0 as 100, and 1.2.10 into 1210. */
 function withoutPunctuation(s: string): string {
     if (parseNumber(s) !== undefined) return s;
     const box = /^\[[ x]\]/i.exec(s)?.[0] ?? '';
     const rest = s.slice(box.length);
     const name = rest
-        .replace(/\p{P}+/gu, (run, at: number) => /\d/.test(rest[at - 1] ?? '') && /\d/.test(rest[at + run.length] ?? '') ? run : '')
+        .replace(/\p{P}+/gu, (run, at: number) => isDigitSeparator(rest, at, run) ? run : '')
         .replace(/\s+/g, ' ').trim();
     if (name === '') return s;
     return box === '' ? name : `${box} ${name}`;
+}
+
+/** Whether the run of punctuation at `at` in `s` is a single character with a
+ *  digit on each side, as in 1.9, 10:30 or 2024-1-5. A longer run, as in (2)(3),
+ *  is brackets or marks around digits rather than a separator between them. */
+function isDigitSeparator(s: string, at: number, run: string): boolean {
+    const digit = /^\p{Nd}$/u;
+    const before = [...s.slice(0, at)].at(-1) ?? '';
+    const after = [...s.slice(at + run.length)][0] ?? '';
+    return [...run].length === 1 && digit.test(before) && digit.test(after);
 }
 
 /** A list item's prefix: indent, "-", "*", "+" or "N.", and the space after. */
@@ -288,10 +298,13 @@ function findColumn(column: Column, header: string, options: KeyOptions): { inde
     // Headers that differ only in punctuation (Q1 and Q1.) are told apart by
     // an exact match, ignoring case and formatting, before the looser one that
     // ignore_punctuation=yes allows.
-    const exact = (s: string) => visibleText(s, 'no').trim();
-    const loose = (s: string) => extractSortKey(s, { case: 'no', ignorePunctuation: options.ignorePunctuation });
+    const fold = (ignorePunctuation: Flag) => (s: string) => extractSortKey(s, { case: 'no', ignorePunctuation });
+    const exact = fold('no');
     let index = headers.map(exact).indexOf(exact(column.name));
-    if (index < 0) index = headers.map(loose).indexOf(loose(column.name));
+    if (index < 0 && options.ignorePunctuation === 'yes') {
+        const loose = fold('yes');
+        index = headers.map(loose).indexOf(loose(column.name));
+    }
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
 }
 

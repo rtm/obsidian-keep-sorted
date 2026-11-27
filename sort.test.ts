@@ -116,7 +116,8 @@ test('punctuation inside or after the text is ignored too, in every script', () 
     assert.deepEqual(sortedItems(['well-known b', 'wellknown a', 'well known c']), ['well known c', 'wellknown a', 'well-known b']);
     assert.deepEqual(sortedItems(['AT&T', 'ATM']), ['ATM', 'AT&T']);
     assert.deepEqual(sortedItems(['ほげ、ふが', 'ほげあ']), ['ほげあ', 'ほげ、ふが']);
-    assert.deepEqual(sortedItems(['«Zeta», b', 'Zeta a']), ['Zeta a', '«Zeta», b']);    assert.deepEqual(sortedItems(['«Привет», мир', 'Привет, всем']), ['Привет, всем', '«Привет», мир']);
+    assert.deepEqual(sortedItems(['«Zeta», b', 'Zeta a']), ['Zeta a', '«Zeta», b']);
+    assert.deepEqual(sortedItems(['«Привет», мир', 'Привет, всем']), ['Привет, всем', '«Привет», мир']);
 });
 
 test('dropping punctuation between spaces leaves one space, not a gap', () => {
@@ -180,6 +181,10 @@ test('punctuation between digits stays, so digit runs are not fused', () => {
     // Without numeric the digits are characters, but v1.9 must still come before v10.0, and dates keep their dashes.
     assert.deepEqual(sorted(['v10.0', 'v1.9'], IGNORE), ['v1.9', 'v10.0']);
     assert.deepEqual(sorted(['2024-10-1', '2024-1-5'], IGNORE), ['2024-1-5', '2024-10-1']);
+    // Digits of other scripts count: fullwidth, so ｖ１．９ stays ahead of ｖ１０．０.
+    assert.deepEqual(sorted(['ｖ１０．０', 'ｖ１．９'], IGNORE), ['ｖ１．９', 'ｖ１０．０']);
+    // Only a single character is a separator; brackets around digits are dropped, so (2)(3) b reads as 23 b.
+    assert.deepEqual(sorted(['(2)(3) b', '23 a', '2 3 c'], `numeric=yes ${IGNORE}`), ['2 3 c', '23 a', '(2)(3) b']);
     // Punctuation not between digits is still dropped.
     assert.deepEqual(sorted(['(v2.1)', 'v1.12.']), ['v1.12.', '(v2.1)']);
     // A number in a table cell is read by its value, separators and all.
@@ -194,9 +199,11 @@ test('a column name picks the header it spells exactly before one that differs i
     // With no exact header, the punctuation-free spelling finds it.
     const loose = (rows: string, opts: string) => block(`| Q1. | Z |\n| --- | --- |\n${rows}`, opts);
     assert.equal(sortKeepSortedBlocks(loose('| b | 1 |\n| a | 2 |\n', `column=Q1 ${IGNORE}`)), loose('| a | 2 |\n| b | 1 |\n', `column=Q1 ${IGNORE}`));
-    // Without the option the header must be spelled as it is, so the column is not found and the block is left alone.
+    // Without the option the header must be spelled as it is (a list-like prefix aside), so the column is not found and the block is left alone.
     const unsorted = loose('| b | 1 |\n| a | 2 |\n', 'column=Q1');
     assert.equal(sortKeepSortedBlocks(unsorted), unsorted);
+    const numbered = (rows: string) => block(`| 1. Cost | Z |\n| --- | --- |\n${rows}`, 'column=Cost');
+    assert.equal(sortKeepSortedBlocks(numbered('| b | 1 |\n| a | 2 |\n')), numbered('| a | 2 |\n| b | 1 |\n'));
 });
 
 test('checked and unchecked tasks stay apart', () => {
