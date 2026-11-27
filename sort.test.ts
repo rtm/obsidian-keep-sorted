@@ -427,10 +427,17 @@ for (const { name, input, sorted, fallback, bad } of choiceOptions) {
             assert.equal(warnings.length, 1, val);
             assert.ok(warnings[0].includes(`${name}=${val}`), warnings[0]);
             assert.ok(warnings[0].includes(allowed.join(' or ')), warnings[0]);
-            assert.ok(warnings[0].includes(`${name}=${fallback}`), warnings[0]);
+            assert.ok(warnings[0].includes(`${name}=${fallback} is kept`), warnings[0]);
         }
     });
 }
+
+test('a bad value on a repeated option keeps the earlier value', () => {
+    const opts = 'numeric=yes numeric=bogus case=no case=bogus2';
+    const warnings = warningsFrom(() =>
+        assert.equal(sortKeepSortedBlocks(block('- item10\n- item2\n- B\n- a\n', opts)), block('- a\n- B\n- item2\n- item10\n', opts)));
+    assert.equal(warnings.length, 2);
+});
 
 test('case=yesss sorts case-sensitively, the default, and warns', () => {
     const opts = 'case=yesss';

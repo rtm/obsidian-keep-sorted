@@ -40,7 +40,7 @@ function parseOptions(str: string): SortOptions {
         const val = quoted ? raw.slice(1, -1) : raw;
         if (key === 'case') opts.case = parseChoice(key, val, FLAG_VALUES, opts.case);
         else if (key === 'order') opts.order = parseChoice(key, val, ORDER_VALUES, opts.order);
-        else if (key === 'numeric') opts.numeric = parseChoice(key, val, FLAG_VALUES, 'no') === 'yes';
+        else if (key === 'numeric') opts.numeric = parseChoice(key, val, FLAG_VALUES, opts.numeric ? 'yes' : 'no') === 'yes';
         else if (key === 'skip_lines') opts.skipLines = parseSkipLines(val);
         else if (key === 'group') opts.group = parseChoice(key, val, FLAG_VALUES, opts.group);
         else if (key === 'nested') opts.nested = parseChoice(key, val, FLAG_VALUES, opts.nested);
@@ -54,12 +54,12 @@ function parseOptions(str: string): SortOptions {
 const FLAG_VALUES: readonly Flag[] = ['yes', 'no'];
 const ORDER_VALUES: readonly SortOptions['order'][] = ['asc', 'desc'];
 
-/** A value that is not one of the allowed ones warns and keeps the option's
- *  default, so a typo such as case=yess does not pass for its opposite. */
+/** A value that is not one of the allowed ones warns and leaves the option as it
+ *  was, so a typo such as case=yess does not pass for its opposite. */
 function parseChoice<T extends string>(name: string, val: string, allowed: readonly T[], fallback: T): T {
     const choice = allowed.find(a => a === val);
     if (choice !== undefined) return choice;
-    warnOnce(`${name}=${val} is not ${allowed.join(' or ')}; the default ${name}=${fallback} is used`);
+    warnOnce(`${name}=${val} is not ${allowed.join(' or ')}; ${name}=${fallback} is kept`);
     return fallback;
 }
 
