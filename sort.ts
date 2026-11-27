@@ -22,6 +22,9 @@ interface SortOptions {
     column?: Column;
     /** What an item sorts by. Not in google/keep-sorted, which has no tasks. */
     key: SortKey;
+    /** Whether punctuation is left out of the keys. Not in google/keep-sorted,
+     *  which compares punctuation like any other character. */
+    ignorePunctuation: Flag;
 }
 
 /** Lines held in place at the top and bottom of the block. head is absent
@@ -32,7 +35,7 @@ type SkipLines = { head?: number; tail: number };
 type Column = { position: number } | { name: string };
 
 function parseOptions(str: string): SortOptions {
-    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text' };
+    const opts: SortOptions = { case: 'yes', order: 'asc', numeric: false, skipLines: { tail: 0 }, group: 'yes', nested: 'no', key: 'text', ignorePunctuation: 'no' };
     // A value with spaces, such as a header name, is written in double quotes.
     for (const [, key, raw] of str.matchAll(/(\w+)=("[^"]*"|\S+)/g)) {
         // An unterminated quote is taken literally, so the warning shows what was written.
@@ -45,6 +48,7 @@ function parseOptions(str: string): SortOptions {
         else if (key === 'group') opts.group = val as Flag;
         else if (key === 'nested') opts.nested = val as Flag;
         else if (key === 'key') opts.key = parseKey(val);
+        else if (key === 'ignore_punctuation') opts.ignorePunctuation = parseIgnorePunctuation(val);
         // A header that is literally a number is quoted to tell it from a position.
         else if (key === 'column') opts.column = !quoted && /^\d+$/.test(val) ? { position: parseInt(val, 10) } : { name: val };
     }
@@ -57,6 +61,15 @@ function parseKey(val: string): SortKey {
     if (val === 'text' || val === 'task-status') return val;
     warnOnce(`key=${val} is not a sort key; the block is sorted by text`);
     return 'text';
+}
+
+/** A value that is not yes or no warns and leaves punctuation in, as if the
+ *  option were not given, so a typo does not pass for the feature doing
+ *  nothing. */
+function parseIgnorePunctuation(val: string): Flag {
+    if (val === 'yes' || val === 'no') return val;
+    warnOnce(`ignore_punctuation=${val} is not yes or no; punctuation is not ignored`);
+    return 'no';
 }
 
 /** "2" skips two lines at the top; "-2" two at the bottom; "2,-2" both.
@@ -132,12 +145,17 @@ function directed(cmp: number, order: SortOptions['order']): number {
 }
 
 /** The options that decide the text of a key. */
-type KeyOptions = Pick<SortOptions, 'case'>;
+type KeyOptions = Pick<SortOptions, 'case' | 'ignorePunctuation'>;
 
 /** The text a line sorts by: what the reader sees, lowercased when the case
- *  option is no, and without punctuation. */
+ *  option is no, and without punctuation when ignore_punctuation is yes. */
 function extractSortKey(line: string, options: KeyOptions): string {
-    return withoutPunctuation(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim());
+    return keyText(visibleText(line.replace(LIST_PREFIX, ''), options.case).trim(), options);
+}
+
+/** The text as a key, with punctuation left out if the block asks. */
+function keyText(visible: string, options: KeyOptions): string {
+    return options.ignorePunctuation === 'yes' ? withoutPunctuation(visible) : visible;
 }
 
 /** Text as the reader sees it: link syntax and formatting removed, and
@@ -153,8 +171,8 @@ function visibleText(text: string, keepCase: Flag): string {
     return keepCase !== 'yes' ? s.toLowerCase() : s;
 }
 
-/** Punctuation is not part of a name, wherever it stands and in any script:
- *  every character Unicode gives General Category P is dropped, so “Paper”,
+/** With ignore_punctuation=yes, punctuation is not part of a name, wherever it
+ *  stands and in any script: every character Unicode gives General Category P is dropped, so “Paper”,
  *  (Paper) and Paper sort alike, as do Dr. Smith and Dr Smith. Symbols (category
  *  S, such as $ + ~) are not punctuation and stay. The words left are joined
  *  by single spaces, so dropping a dash between two spaces leaves no gap.
@@ -226,7 +244,7 @@ function itemKey(s: string, options: SortOptions): ItemKey {
     const box = options.key === 'task-status' ? CHECKBOX.exec(s) : null;
     const marked = KEY_COMMENT.exec(s)?.[2].trim() || SORT_KEY.exec(s)?.[2].trim();
     const rest = (box ? s.replace(CHECKBOX, '$1') : s).replace(KEY_COMMENT, '');
-    const text = marked ? withoutPunctuation(visibleText(marked, options.case).trim()) : extractSortKey(rest, options);
+    const text = marked ? keyText(visibleText(marked, options.case).trim(), options) : extractSortKey(rest, options);
     return { rank: statusRank(box?.[2]), text };
 }
 
@@ -259,7 +277,7 @@ function splitCells(row: string): string[] {
 /** The 0-based index of the column, or the reason it was not found. A name
  *  matches a header after formatting is stripped, ignoring case; the first
  *  match wins. */
-function findColumn(column: Column, header: string): { index: number } | { error: string } {
+function findColumn(column: Column, header: string, options: KeyOptions): { index: number } | { error: string } {
     if ('position' in column) {
         const count = splitCells(header).length;
         if (column.position < 1) return { error: `column=${column.position} is not a position` };
@@ -268,9 +286,10 @@ function findColumn(column: Column, header: string): { index: number } | { error
     }
     const headers = splitCells(header);
     // Headers that differ only in punctuation (Q1 and Q1.) are told apart by
-    // an exact match, ignoring case and formatting, before the looser one.
+    // an exact match, ignoring case and formatting, before the looser one that
+    // ignore_punctuation=yes allows.
     const exact = (s: string) => visibleText(s, 'no').trim();
-    const loose = (s: string) => extractSortKey(s, { case: 'no' });
+    const loose = (s: string) => extractSortKey(s, { case: 'no', ignorePunctuation: options.ignorePunctuation });
     let index = headers.map(exact).indexOf(exact(column.name));
     if (index < 0) index = headers.map(loose).indexOf(loose(column.name));
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
@@ -343,7 +362,7 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
     let sorted: string[];
     if (options.column) {
         // A bad column must never scramble the table, so the block is left as it is.
-        const column = isTable ? findColumn(options.column, content[0]) : { error: 'column= needs a table' };
+        const column = isTable ? findColumn(options.column, content[0], options) : { error: 'column= needs a table' };
         if ('error' in column) {
             // The first line tells the blocks apart, so each bad block warns.
             warnOnce(`${column.error}; the block starting "${content[0] ?? ''}" was left unsorted`);
