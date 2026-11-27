@@ -161,14 +161,15 @@ function visibleText(text: string, keepCase: Flag): string {
  *  Three things keep theirs: a number its sign and separators, a task its
  *  checkbox, so checked and unchecked tasks stay apart, and a key of nothing
  *  but punctuation, so a dash placeholder still sorts as a dash rather than
- *  as an empty cell. With numeric, punctuation between two digits stays too,
- *  so 1.2.10 compares as the runs 1, 2 and 10 rather than as the number 1210. */
+ *  as an empty cell. Punctuation between two digits stays too, whatever the
+ *  numeric option: dropping the dots would fuse 1.9 into 19, which sorts
+ *  after 10.0 as 100, and 1.2.10 into 1210. */
 function ignorePunctuation(s: string, options: KeyOptions): string {
     if (parseNumber(s) !== undefined) return s;
     const box = /^\[[ x]\]/i.exec(s)?.[0] ?? '';
     const rest = s.slice(box.length);
     const name = rest
-        .replace(/\p{P}+/gu, (run, at: number) => options.numeric && /\d/.test(rest[at - 1] ?? '') && /\d/.test(rest[at + run.length] ?? '') ? run : '')
+        .replace(/\p{P}+/gu, (run, at: number) => /\d/.test(rest[at - 1] ?? '') && /\d/.test(rest[at + run.length] ?? '') ? run : '')
         .replace(/\s+/g, ' ').trim();
     if (name === '') return s;
     return box === '' ? name : `${box} ${name}`;
@@ -265,8 +266,13 @@ function findColumn(column: Column, header: string): { index: number } | { error
         if (column.position > count) return { error: `column=${column.position} is past the table's last column, ${count}` };
         return { index: column.position - 1 };
     }
-    const fold = (s: string) => extractSortKey(s, { case: 'no', numeric: false });
-    const index = splitCells(header).map(fold).indexOf(fold(column.name));
+    const headers = splitCells(header);
+    // Headers that differ only in punctuation (Q1 and Q1.) are told apart by
+    // an exact match, ignoring case and formatting, before the looser one.
+    const exact = (s: string) => visibleText(s, 'no').trim();
+    const loose = (s: string) => extractSortKey(s, { case: 'no', numeric: false });
+    let index = headers.map(exact).indexOf(exact(column.name));
+    if (index < 0) index = headers.map(loose).indexOf(loose(column.name));
     return index >= 0 ? { index } : { error: `no column is headed "${column.name}"` };
 }
 
@@ -353,7 +359,8 @@ function sortBlock(lines: string[], options: SortOptions): string[] {
 }
 
 /** Sorts table rows by one column. Rows whose cells tie are ordered by their
- *  full text, so the result depends only on the table's content. A missing or
+ *  full text, so the result depends only on the table's content, except that
+ *  rows differing only in punctuation tie there too and keep their order. A missing or
  *  empty cell sorts last whichever way the table is ordered, as in a
  *  spreadsheet, so unfilled rows collect at the bottom. */
 function sortRows(rows: string[], options: SortOptions, column: number): string[] {

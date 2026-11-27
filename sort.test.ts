@@ -125,21 +125,31 @@ test('table cells and task text ignore punctuation, interior included', () => {
     assert.equal(sortKeepSortedBlocks(tasks('- [ ] c.\n- [x] b\n- [ ] (a)\n')), tasks('- [ ] (a)\n- [ ] c.\n- [x] b\n'));
 });
 
-test('with numeric=yes, punctuation between digits keeps the digit runs apart', () => {
+test('punctuation between digits stays, so digit runs are not fused', () => {
     const sorted = (items: string[], opts = 'numeric=yes') =>
         sortKeepSortedBlocks(block(items.map(i => `- ${i}\n`).join(''), opts)).split('\n').slice(1, -1).map(l => l.slice(2));
-    // Merged, these would compare as 1210, 1102 and 110; apart, as versions.
+    // Fused, these would compare as 1210, 1102 and 110; apart, as versions.
     assert.deepEqual(sorted(['1.10.2', '1.2.10', '1.10']), ['1.2.10', '1.10', '1.10.2']);
     assert.deepEqual(sorted(['1.10.1', '1.9']), ['1.9', '1.10.1']);
-    assert.deepEqual(sorted(['v1.10.2', 'v1.2.10', 'v1.9.0-rc.1', 'v1.9.0']), ['v1.2.10', 'v1.9.0', 'v1.9.0-rc.1', 'v1.10.2']);
+    // Pre-release suffixes sort as text after the release, not as semver.
+    assert.deepEqual(sorted(['v1.10.2', 'v1.2.10', 'v1.9.0-rc.1', 'v1.9.0']), ['v1.2.10', 'v1.9.0', 'v1.9.0-rc.1','v1.10.2']);
     assert.deepEqual(sorted(['10:30 b', '9:45 a', '10:5 c']), ['9:45 a', '10:5 c', '10:30 b']);
-    // Without numeric the digits are characters and the dots are gone: 1210 and 1102.
-    assert.deepEqual(sorted(['1.2.10', '1.10.2'], ''), ['1.10.2', '1.2.10']);
+    // Without numeric the digits are characters, but v1.9 must still come before v10.0, and dates keep their dashes.
+    assert.deepEqual(sorted(['v10.0', 'v1.9'], ''), ['v1.9', 'v10.0']);
+    assert.deepEqual(sorted(['2024-10-1', '2024-1-5'], ''), ['2024-1-5', '2024-10-1']);
     // Punctuation not between digits is still dropped.
     assert.deepEqual(sorted(['(v2.1)', 'v1.12.']), ['v1.12.', '(v2.1)']);
     // A number in a table cell is read by its value, separators and all.
     const table = (rows: string) => block(`| Amount |\n| --- |\n${rows}`, 'column=Amount numeric=yes');
     assert.equal(sortKeepSortedBlocks(table('| 1,250.5 |\n| 300 |\n| 12 |\n')), table('| 12 |\n| 300 |\n| 1,250.5 |\n'));
+});
+
+test('a column name picks the header it spells exactly before one that differs in punctuation', () => {
+    const table = (rows: string) => block(`| Q1. | Q1 |\n| --- | --- |\n${rows}`, 'column=Q1');
+    assert.equal(sortKeepSortedBlocks(table('| a | z |\n| b | y |\n')), table('| b | y |\n| a | z |\n'));
+    // With no exact header, the punctuation-free spelling finds it.
+    const loose = (rows: string) => block(`| Q1. | Z |\n| --- | --- |\n${rows}`, 'column=Q1');
+    assert.equal(sortKeepSortedBlocks(loose('| b | 1 |\n| a | 2 |\n')), loose('| a | 2 |\n| b | 1 |\n'));
 });
 
 test('checked and unchecked tasks stay apart', () => {
