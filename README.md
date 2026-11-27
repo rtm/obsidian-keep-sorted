@@ -124,6 +124,8 @@ Options can be added to the start marker:
 | `key` | `text`, `task-status` | `text` | What an item sorts by: its text, or its checkbox first and then its text. With `column`, the checkbox in that column's cell. Not in Google's keep-sorted. |
 | `skip_lines` | number, or two numbers such as `2,-2` | none | Lines to leave unsorted: a positive number at the top, a negative one at the bottom, counted from the first and last non-blank lines. Without a top count, a table's header and separator rows are kept on top automatically; `skip_lines=0` turns that off. |
 
+A value that is not one of those listed for `order`, `case`, `numeric`, `group`, `nested` or `key` is ignored: the option is left as it was, which is its default unless the option is repeated, and a warning is logged in the developer console.
+
 These options, their values and their defaults match Google's [keep-sorted](https://github.com/google/keep-sorted), except `nested`, `column` and `key`, which it does not have. Like it, the plugin compares characters by code point rather than by language, so accented letters, and punctuation inside a name, sort by their character codes. Differences: the plugin compares the text you see, without list markers, link syntax or formatting; it supports none of Google's other options, and does not remove duplicates; and `skip_lines` ignores blank lines at the edges of the block, which Obsidian needs around a table.
 
 ## Sort key extraction
