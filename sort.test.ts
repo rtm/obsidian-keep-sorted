@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { caseForSetting, changedSpan, markSortKey, setSortKey, sortKeepSortedBlocks, sortKeyOf, wrapInMarkers } from './sort.ts';
 
@@ -416,6 +416,88 @@ test('a key that is not a sort key sorts by text', () => {
     const opts = 'key=status';
     const input = block('- [x] apple\n- [ ] zebra\n- [ ] mango\n', opts);
     assert.equal(sortKeepSortedBlocks(input), block('- [ ] mango\n- [ ] zebra\n- [x] apple\n', opts));
+});
+
+/** Runs fn and returns what it logged with console.warn. */
+function warningsFrom(fn: () => void): string[] {
+    const warn = mock.method(console, 'warn', () => {});
+    try {
+        fn();
+        return warn.mock.calls.map(call => String(call.arguments[0]));
+    } finally {
+        warn.mock.restore();
+    }
+}
+
+// Each bad value is used once per option, because a warning is logged once per message.
+const choiceOptions = [
+    { name: 'case', input: '- b\n- C\n- a\n', sorted: { yes: '- C\n- a\n- b\n', no: '- a\n- b\n- C\n' }, fallback: 'yes', bad: ['yess', 'true'] },
+    { name: 'order', input: '- a\n- b\n', sorted: { asc: '- a\n- b\n', desc: '- b\n- a\n' }, fallback: 'asc', bad: ['descending', 'DESC'] },
+    { name: 'numeric', input: '- item10\n- item2\n', sorted: { yes: '- item2\n- item10\n', no: '- item10\n- item2\n' }, fallback: 'no', bad: ['yess', 'true'] },
+    { name: 'group', input: '- b\n  - y\n- a\n  - x\n', sorted: { yes: '- a\n  - x\n- b\n  - y\n', no: '- a\n- b\n  - x\n  - y\n' }, fallback: 'yes', bad: ['yess', 'true'] },
+    { name: 'nested', input: '- b\n  - z\n  - y\n- a\n', sorted: { yes: '- a\n- b\n  - y\n  - z\n', no: '- a\n- b\n  - z\n  - y\n' }, fallback: 'no', bad: ['yess', 'true'] },
+];
+
+for (const { name, input, sorted, fallback, bad } of choiceOptions) {
+    const allowed = Object.keys(sorted);
+    const expectedFor = (val: string) => (sorted as Record<string, string>)[val];
+
+    test(`${name} takes ${allowed.join(' and ')} without a warning`, () => {
+        for (const val of allowed) {
+            const opts = `${name}=${val}`;
+            const warnings = warningsFrom(() =>
+                assert.equal(sortKeepSortedBlocks(block(input, opts)), block(expectedFor(val), opts)));
+            assert.deepEqual(warnings, []);
+        }
+    });
+
+    test(`${name} with a value that is not ${allowed.join(' or ')} warns once and uses ${fallback}`, () => {
+        for (const val of bad) {
+            const opts = `${name}=${val}`;
+            const warnings = warningsFrom(() => {
+                // Sorted twice, as the plugin does after every pause in typing.
+                for (let pass = 0; pass < 2; pass++) {
+                    assert.equal(sortKeepSortedBlocks(block(input, opts)), block(expectedFor(fallback), opts));
+                }
+            });
+            assert.equal(warnings.length, 1, val);
+            assert.ok(warnings[0].includes(`${name}=${val}`), warnings[0]);
+            assert.ok(warnings[0].includes(allowed.join(' or ')), warnings[0]);
+            assert.ok(warnings[0].includes(`${name}=${fallback} is kept`), warnings[0]);
+        }
+    });
+}
+
+test('a case value that is not yes or no falls back to the configured default, not to yes', () => {
+    const opts = 'case=maybe';
+    const warnings = warningsFrom(() => {
+        assert.equal(sortKeepSortedBlocks(block('- Zebra\n- apple\n', opts), 'no'), block('- apple\n- Zebra\n', opts));
+        assert.equal(sortKeepSortedBlocks(block('- apple\n- Zebra\n', opts), 'yes'), block('- Zebra\n- apple\n', opts));
+    });
+    assert.equal(warnings.length, 2);
+    assert.ok(warnings[0].includes('case=no is kept'), warnings[0]);
+    assert.ok(warnings[1].includes('case=yes is kept'), warnings[1]);
+});
+
+test('a bad value on a repeated option keeps the earlier value', () => {
+    const opts = 'numeric=yes numeric=bogus case=no case=bogus2';
+    const warnings = warningsFrom(() =>
+        assert.equal(sortKeepSortedBlocks(block('- item10\n- item2\n- B\n- a\n', opts)), block('- a\n- B\n- item2\n- item10\n', opts)));
+    assert.equal(warnings.length, 2);
+});
+
+test('case=yesss sorts case-sensitively, the default, and warns', () => {
+    const opts = 'case=yesss';
+    const warnings = warningsFrom(() =>
+        assert.equal(sortKeepSortedBlocks(block('- b\n- C\n- a\n', opts)), block('- C\n- a\n- b\n', opts)));
+    assert.equal(warnings.length, 1);
+});
+
+test('a bad value leaves the options around it in effect', () => {
+    const opts = 'case=bogus order=desc';
+    const warnings = warningsFrom(() =>
+        assert.equal(sortKeepSortedBlocks(block('- b\n- C\n- a\n', opts)), block('- b\n- a\n- C\n', opts)));
+    assert.equal(warnings.length, 1);
 });
 
 test('a block made by wrapInMarkers is found and sorted', () => {
